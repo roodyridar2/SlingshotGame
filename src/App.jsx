@@ -263,6 +263,7 @@ function SoccerStarsGame() {
       if (aiMove) {
         // Execute the calculated AI move
         executeAIMove(aiMove, setGameState, gameConstants);
+        setIsAiProcessing(false); // Reset flag after successful execution
       } else {
         // Fallback to simple move if no good move found
         const aiPlayer = gameState.balls.find(b => b.isPlayer && b.team === 2);
@@ -305,6 +306,7 @@ function SoccerStarsGame() {
             isMoving: true
           };
         });
+        setIsAiProcessing(false); // Reset flag after successful execution
       }
       
       console.log('AI move executed with difficulty:', aiDifficulty);
@@ -321,7 +323,7 @@ function SoccerStarsGame() {
         gameState.currentTeam === 2 && 
         !gameState.isMoving && 
         !showGameModeSelection &&
-        !isAiProcessing) {
+        !isAiProcessing) { // Restore the check here
       console.log('AI turn detected, preparing to make a move with difficulty:', aiDifficulty);
       
       // Set AI processing flag to prevent multiple calls
@@ -346,7 +348,7 @@ function SoccerStarsGame() {
         aiTimeoutRef.current = null;
       }
     };
-  }, [gameMode, gameState.currentTeam, gameState.isMoving, showGameModeSelection, handleAIMove, aiDifficulty, isAiProcessing]);
+  }, [gameMode, gameState.currentTeam, gameState.isMoving, showGameModeSelection, handleAIMove, aiDifficulty]);
 
   // Physics update effect
   useEffect(() => {
