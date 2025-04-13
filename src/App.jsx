@@ -251,54 +251,68 @@ function SoccerStarsGame() {
     };
     
     try {
-      // Hard-coded move for testing
-      const aiPlayer = gameState.balls.find(b => b.isPlayer && b.team === 2);
-      if (!aiPlayer) {
-        console.error('No AI player found!');
-        setIsAiProcessing(false);
-        return;
+      // Calculate AI move based on current difficulty level
+      const aiMove = calculateAIMove(
+        gameState,
+        aiDifficulty, // Use current difficulty setting
+        containerRef,
+        selectPlayer,
+        gameConstants
+      );
+      
+      if (aiMove) {
+        // Execute the calculated AI move
+        executeAIMove(aiMove, setGameState, gameConstants);
+      } else {
+        // Fallback to simple move if no good move found
+        const aiPlayer = gameState.balls.find(b => b.isPlayer && b.team === 2);
+        if (!aiPlayer) {
+          console.error('No AI player found!');
+          setIsAiProcessing(false);
+          return;
+        }
+        
+        console.log('AI player found:', aiPlayer.id);
+        
+        // Select a blue player
+        selectPlayer(aiPlayer.id);
+        
+        // Create a direct shot toward the goal
+        const directionX = -1; // Shoot left toward red goal
+        const directionY = 0;  // Straight shot
+        const power = MAX_PULL_DISTANCE * POWER_FACTOR;
+        
+        console.log('Setting AI velocity:', { x: directionX * power, y: directionY * power });
+        
+        // Apply the move directly
+        setGameState(prev => {
+          const newBalls = prev.balls.map(ball => {
+            if (ball.id === aiPlayer.id) {
+              return {
+                ...ball,
+                vel: { 
+                  x: directionX * power, 
+                  y: directionY * power 
+                }
+              };
+            }
+            return ball;
+          });
+          
+          return {
+            ...prev,
+            balls: newBalls,
+            isMoving: true
+          };
+        });
       }
       
-      console.log('AI player found:', aiPlayer.id);
-      
-      // Select a blue player
-      selectPlayer(aiPlayer.id);
-      
-      // Create a direct shot toward the goal
-      const directionX = -1; // Shoot left toward red goal
-      const directionY = 0;  // Straight shot
-      const power = MAX_PULL_DISTANCE * POWER_FACTOR;
-      
-      console.log('Setting AI velocity:', { x: directionX * power, y: directionY * power });
-      
-      // Apply the move directly
-      setGameState(prev => {
-        const newBalls = prev.balls.map(ball => {
-          if (ball.id === aiPlayer.id) {
-            return {
-              ...ball,
-              vel: { 
-                x: directionX * power, 
-                y: directionY * power 
-              }
-            };
-          }
-          return ball;
-        });
-        
-        return {
-          ...prev,
-          balls: newBalls,
-          isMoving: true
-        };
-      });
-      
-      console.log('AI move executed directly');
+      console.log('AI move executed with difficulty:', aiDifficulty);
     } catch (error) {
       console.error('Error executing AI move:', error);
       setIsAiProcessing(false);
     }
-  }, [gameState, MAX_PULL_DISTANCE, POWER_FACTOR, selectPlayer, setGameState]);
+  }, [gameState, aiDifficulty, containerRef, selectPlayer, setGameState]);
   
   // Effect to trigger AI move when it's AI's turn
   useEffect(() => {
@@ -308,7 +322,7 @@ function SoccerStarsGame() {
         !gameState.isMoving && 
         !showGameModeSelection &&
         !isAiProcessing) {
-      console.log('AI turn detected, preparing to make a move');
+      console.log('AI turn detected, preparing to make a move with difficulty:', aiDifficulty);
       
       // Set AI processing flag to prevent multiple calls
       setIsAiProcessing(true);
@@ -332,7 +346,7 @@ function SoccerStarsGame() {
         aiTimeoutRef.current = null;
       }
     };
-  }, [gameMode, gameState.currentTeam, gameState.isMoving, showGameModeSelection, handleAIMove]);
+  }, [gameMode, gameState.currentTeam, gameState.isMoving, showGameModeSelection, handleAIMove, aiDifficulty, isAiProcessing]);
 
   // Physics update effect
   useEffect(() => {
@@ -613,6 +627,7 @@ function SoccerStarsGame() {
     setAiDifficulty(difficulty);
     setGameState(initialGameState(mode, difficulty));
     setShowGameModeSelection(false);
+    setIsAiProcessing(false); // Reset AI processing state when starting a new game
   };
   
   // Return to game mode selection
@@ -629,17 +644,13 @@ function SoccerStarsGame() {
   
   // This has been moved up before the return statement
   
-  // Get selected player for rendering
-  const selectedPlayer = getSelectedPlayer();
+  // Get selected player for rendering (used in the component)
   
   return (
     <div className="flex flex-col justify-center items-center h-screen bg-gray-800 p-4">
       {showGameModeSelection ? (
         <GameMenu
-          gameMode={gameMode}
-          setGameMode={setGameMode}
           aiDifficulty={aiDifficulty}
-          setAiDifficulty={setAiDifficulty}
           startGame={startGame}
         />
       ) : (
@@ -731,6 +742,32 @@ function SoccerStarsGame() {
             Restart
           </button>
         </div>
+        
+        {/* AI Difficulty Controls (only shown in VS_AI mode) */}
+        {gameMode === GAME_MODES.VS_AI && (
+          <div className="absolute bottom-4 left-4 flex items-center">
+            <div className="flex space-x-1">
+              <button 
+                className={`px-2 py-1 text-xs rounded-md ${aiDifficulty === AI_DIFFICULTY.EASY ? 'bg-yellow-600 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
+                onClick={() => setAiDifficulty(AI_DIFFICULTY.EASY)}
+              >
+                Easy
+              </button>
+              <button 
+                className={`px-2 py-1 text-xs rounded-md ${aiDifficulty === AI_DIFFICULTY.MEDIUM ? 'bg-yellow-600 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
+                onClick={() => setAiDifficulty(AI_DIFFICULTY.MEDIUM)}
+              >
+                Medium
+              </button>
+              <button 
+                className={`px-2 py-1 text-xs rounded-md ${aiDifficulty === AI_DIFFICULTY.HARD ? 'bg-yellow-600 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
+                onClick={() => setAiDifficulty(AI_DIFFICULTY.HARD)}
+              >
+                Hard
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       
       <div className="mt-4 text-white text-center">

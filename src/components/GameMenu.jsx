@@ -7,10 +7,7 @@ import { GAME_MODES, AI_DIFFICULTY } from '../constants';
  * Game menu component for selecting game mode and AI difficulty
  */
 function GameMenu({ 
-  gameMode, 
-  setGameMode, 
   aiDifficulty, 
-  setAiDifficulty, 
   startGame 
 }) {
   return (
@@ -30,47 +27,16 @@ function GameMenu({
         
         <button 
           className="bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg flex flex-col items-center"
-          onClick={() => setGameMode(GAME_MODES.VS_AI)}
+          onClick={() => startGame(GAME_MODES.VS_AI, aiDifficulty)}
         >
           <span className="text-lg font-bold">vs AI</span>
           <span className="text-sm mt-1">Play against the computer</span>
         </button>
       </div>
       
-      {gameMode === GAME_MODES.VS_AI && (
-        <div className="mb-6">
-          <h2 className="text-xl mb-4">Select AI Difficulty:</h2>
-          <div className="grid grid-cols-3 gap-3">
-            <button 
-              className={`py-2 px-4 rounded-lg ${aiDifficulty === AI_DIFFICULTY.EASY ? 'bg-yellow-600' : 'bg-gray-600 hover:bg-gray-500'}`}
-              onClick={() => setAiDifficulty(AI_DIFFICULTY.EASY)}
-            >
-              Easy
-            </button>
-            <button 
-              className={`py-2 px-4 rounded-lg ${aiDifficulty === AI_DIFFICULTY.MEDIUM ? 'bg-yellow-600' : 'bg-gray-600 hover:bg-gray-500'}`}
-              onClick={() => setAiDifficulty(AI_DIFFICULTY.MEDIUM)}
-            >
-              Medium
-            </button>
-            <button 
-              className={`py-2 px-4 rounded-lg ${aiDifficulty === AI_DIFFICULTY.HARD ? 'bg-yellow-600' : 'bg-gray-600 hover:bg-gray-500'}`}
-              onClick={() => setAiDifficulty(AI_DIFFICULTY.HARD)}
-            >
-              Hard
-            </button>
-          </div>
-        </div>
-      )}
+
       
-      {gameMode === GAME_MODES.VS_AI && (
-        <button 
-          className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 px-4 rounded-lg font-bold"
-          onClick={() => startGame(GAME_MODES.VS_AI, aiDifficulty)}
-        >
-          Start Game vs AI ({aiDifficulty})
-        </button>
-      )}
+
     </div>
   );
 }
