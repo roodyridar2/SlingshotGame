@@ -121,6 +121,7 @@ function SoccerStarsGame() {
   const [isDragging, setIsDragging] = useState(false);
   const [startDragPos, setStartDragPos] = useState({ x: 0, y: 0 });
   const [currentDragPos, setCurrentDragPos] = useState({ x: 0, y: 0 });
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
   
   // Refs
   const containerRef = useRef(null);
@@ -234,6 +235,14 @@ function SoccerStarsGame() {
   
   // Helper function for AI to make a move - using the imported function
   const handleAIMove = useCallback(() => {
+    console.log('Handling AI move, current team:', gameState.currentTeam);
+    
+    if (gameState.currentTeam !== 2 || gameState.isMoving) {
+      console.log('Cannot make AI move - not AI turn or pieces are moving');
+      setIsAiProcessing(false);
+      return;
+    }
+    
     // Get game constants to pass to AI functions
     const gameConstants = {
       MAX_PULL_DISTANCE,
@@ -241,44 +250,86 @@ function SoccerStarsGame() {
       MIN_VELOCITY_THRESHOLD
     };
     
-    // Calculate the best move
-    const aiMove = calculateAIMove(
-      gameState,
-      aiDifficulty,
-      containerRef,
-      selectPlayer,
-      gameConstants
-    );
-    
-    // If a move was found, execute it after a delay
-    if (aiMove) {
-      aiTimeoutRef.current = setTimeout(() => {
-        executeAIMove(aiMove, setGameState, gameConstants);
-      }, 1000); // 1 second delay to make it feel more natural
+    try {
+      // Hard-coded move for testing
+      const aiPlayer = gameState.balls.find(b => b.isPlayer && b.team === 2);
+      if (!aiPlayer) {
+        console.error('No AI player found!');
+        setIsAiProcessing(false);
+        return;
+      }
+      
+      console.log('AI player found:', aiPlayer.id);
+      
+      // Select a blue player
+      selectPlayer(aiPlayer.id);
+      
+      // Create a direct shot toward the goal
+      const directionX = -1; // Shoot left toward red goal
+      const directionY = 0;  // Straight shot
+      const power = MAX_PULL_DISTANCE * POWER_FACTOR;
+      
+      console.log('Setting AI velocity:', { x: directionX * power, y: directionY * power });
+      
+      // Apply the move directly
+      setGameState(prev => {
+        const newBalls = prev.balls.map(ball => {
+          if (ball.id === aiPlayer.id) {
+            return {
+              ...ball,
+              vel: { 
+                x: directionX * power, 
+                y: directionY * power 
+              }
+            };
+          }
+          return ball;
+        });
+        
+        return {
+          ...prev,
+          balls: newBalls,
+          isMoving: true
+        };
+      });
+      
+      console.log('AI move executed directly');
+    } catch (error) {
+      console.error('Error executing AI move:', error);
+      setIsAiProcessing(false);
     }
-  }, [gameState, aiDifficulty, selectPlayer]);
+  }, [gameState, MAX_PULL_DISTANCE, POWER_FACTOR, selectPlayer, setGameState]);
   
   // Effect to trigger AI move when it's AI's turn
   useEffect(() => {
-    // If it's AI's turn and the game is not in motion
+    // If it's AI's turn and the game is not in motion and AI is not already processing
     if (gameMode === GAME_MODES.VS_AI && 
         gameState.currentTeam === 2 && 
         !gameState.isMoving && 
-        !showGameModeSelection) {
+        !showGameModeSelection &&
+        !isAiProcessing) {
+      console.log('AI turn detected, preparing to make a move');
+      
+      // Set AI processing flag to prevent multiple calls
+      setIsAiProcessing(true);
+      
       // Clear any existing timeout
       if (aiTimeoutRef.current) {
         clearTimeout(aiTimeoutRef.current);
+        aiTimeoutRef.current = null;
       }
       
-      // Add a small delay before AI makes a move
+      // Execute AI move after a short delay
       aiTimeoutRef.current = setTimeout(() => {
+        console.log('Executing AI move now');
         handleAIMove();
-      }, 1000); // 1 second delay
+      }, 500);
     }
     
     return () => {
       if (aiTimeoutRef.current) {
         clearTimeout(aiTimeoutRef.current);
+        aiTimeoutRef.current = null;
       }
     };
   }, [gameMode, gameState.currentTeam, gameState.isMoving, showGameModeSelection, handleAIMove]);
@@ -452,6 +503,11 @@ function SoccerStarsGame() {
         const shouldChangeTurn = prev.isMoving && !isStillMoving;
         
         if (shouldChangeTurn) {
+          // Reset AI processing flag when turn changes
+          if (prev.currentTeam === 2) {
+            setIsAiProcessing(false);
+          }
+          
           return {
             ...prev,
             balls: newBalls,
