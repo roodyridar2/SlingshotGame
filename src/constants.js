@@ -23,3 +23,7 @@ export const AI_DIFFICULTY = {
   MEDIUM: 'medium',
   HARD: 'hard'
 };
+
+// Default AI settings
+export const DEFAULT_AI_DIFFICULTY = AI_DIFFICULTY.MEDIUM;
+export const AI_POWER_SCALING_FACTOR = 0.5; // Multiplier for AI shot power (1.0 = normal)

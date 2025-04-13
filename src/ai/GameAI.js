@@ -1,4 +1,4 @@
-import { AI_DIFFICULTY } from '../constants';
+import { AI_DIFFICULTY, AI_POWER_SCALING_FACTOR } from '../constants';
 
 /**
  * Calculate the best move for AI based on current game state and difficulty
@@ -81,14 +81,16 @@ export const calculateAIMove = (
       // Easy AI just tries to hit the ball directly with random power
       playerScore = 1000 - distToBall; // Prefer closer players
       moveAngle = angleToBall;
-      movePower = Math.random() * 0.7 * MAX_PULL_DISTANCE + (MAX_PULL_DISTANCE * 0.3); // More power than before
+      const baseEasyPower = Math.random() * 0.7 * MAX_PULL_DISTANCE + (MAX_PULL_DISTANCE * 0.3);
+      movePower = baseEasyPower * AI_POWER_SCALING_FACTOR;
     } 
     else if (aiDifficulty === AI_DIFFICULTY.MEDIUM) {
       // Medium AI tries to hit ball toward goal with moderate power
       const canHitBallTowardGoal = Math.abs(angleToBall - ballToGoalAngle) < Math.PI/3;
       playerScore = canHitBallTowardGoal ? (3000 - distToBall) : (1000 - distToBall);
       moveAngle = canHitBallTowardGoal ? angleToBall : ballToGoalAngle;
-      movePower = Math.min(distToBall * 1.5, MAX_PULL_DISTANCE * 0.9);
+      const baseMediumPower = Math.min(distToBall * 1.5, MAX_PULL_DISTANCE * 0.9);
+      movePower = baseMediumPower * AI_POWER_SCALING_FACTOR;
     }
     else if (aiDifficulty === AI_DIFFICULTY.HARD) {
       // Hard AI uses more sophisticated strategy
@@ -105,12 +107,14 @@ export const calculateAIMove = (
         // Aim slightly ahead of the ball in the direction of the goal
         const adjustedAngle = calculateAdjustedAngle(angleToBall, ballToGoalAngle, 0.7);
         moveAngle = adjustedAngle;
-        movePower = MAX_PULL_DISTANCE; // Full power for direct shots
+        const baseHardPowerDirect = MAX_PULL_DISTANCE;
+        movePower = baseHardPowerDirect * AI_POWER_SCALING_FACTOR;
       } else {
         // Try to position the ball better
         playerScore = 2000 - distToBall;
         moveAngle = angleToBall;
-        movePower = Math.min(distToBall * 1.8, MAX_PULL_DISTANCE);
+        const baseHardPowerSetup = Math.min(distToBall * 1.2, MAX_PULL_DISTANCE * 0.8);
+        movePower = baseHardPowerSetup * AI_POWER_SCALING_FACTOR;
       }
     }
     
@@ -174,7 +178,7 @@ const findDirectScoringMove = (aiPlayers, ball, goalY, maxPullDistance) => {
       return {
         player: player,
         angle: angleToBall,
-        power: maxPullDistance // Use full power for direct shots
+        power: maxPullDistance * AI_POWER_SCALING_FACTOR
       };
     }
   }

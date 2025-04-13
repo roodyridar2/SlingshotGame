@@ -20,11 +20,13 @@ import {
   ARROW_MAX_WIDTH,
   GOAL_HEIGHT,
   GAME_MODES,
-  AI_DIFFICULTY
+  AI_DIFFICULTY,
+  DEFAULT_AI_DIFFICULTY,
+  AI_POWER_SCALING_FACTOR
 } from './constants';
 
 // Team and player setup
-const initialGameState = (gameMode = GAME_MODES.VS_PLAYER, aiDifficulty = AI_DIFFICULTY.MEDIUM) => {
+const initialGameState = (gameMode = GAME_MODES.VS_PLAYER, aiDifficulty = DEFAULT_AI_DIFFICULTY) => {
   const fieldWidth = 600;
   const fieldHeight = 400;
   
@@ -116,8 +118,8 @@ function SoccerStarsGame() {
   // State initialization
   const [showGameModeSelection, setShowGameModeSelection] = useState(true);
   const [gameMode, setGameMode] = useState(GAME_MODES.VS_PLAYER);
-  const [aiDifficulty, setAiDifficulty] = useState(AI_DIFFICULTY.MEDIUM);
-  const [gameState, setGameState] = useState(() => initialGameState(GAME_MODES.VS_PLAYER, AI_DIFFICULTY.MEDIUM));
+  const [aiDifficulty, setAiDifficulty] = useState(DEFAULT_AI_DIFFICULTY);
+  const [gameState, setGameState] = useState(() => initialGameState(GAME_MODES.VS_PLAYER, DEFAULT_AI_DIFFICULTY));
   const [isDragging, setIsDragging] = useState(false);
   const [startDragPos, setStartDragPos] = useState({ x: 0, y: 0 });
   const [currentDragPos, setCurrentDragPos] = useState({ x: 0, y: 0 });
@@ -281,9 +283,10 @@ function SoccerStarsGame() {
         // Create a direct shot toward the goal
         const directionX = -1; // Shoot left toward red goal
         const directionY = 0;  // Straight shot
-        const power = MAX_PULL_DISTANCE * POWER_FACTOR;
+        const basePower = MAX_PULL_DISTANCE * POWER_FACTOR;
+        const finalPower = basePower * AI_POWER_SCALING_FACTOR;
         
-        console.log('Setting AI velocity:', { x: directionX * power, y: directionY * power });
+        console.log('Setting AI fallback velocity:', { x: directionX * finalPower, y: directionY * finalPower });
         
         // Apply the move directly
         setGameState(prev => {
@@ -292,8 +295,8 @@ function SoccerStarsGame() {
               return {
                 ...ball,
                 vel: { 
-                  x: directionX * power, 
-                  y: directionY * power 
+                  x: directionX * finalPower, 
+                  y: directionY * finalPower 
                 }
               };
             }
@@ -624,7 +627,7 @@ function SoccerStarsGame() {
   };
   
   // Start a new game with selected mode
-  const startGame = (mode, difficulty = AI_DIFFICULTY.MEDIUM) => {
+  const startGame = (mode, difficulty = DEFAULT_AI_DIFFICULTY) => {
     setGameMode(mode);
     setAiDifficulty(difficulty);
     setGameState(initialGameState(mode, difficulty));
