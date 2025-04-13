@@ -1,20 +1,30 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
-// Constants for physics and appearance
-const PLAYER_SIZE = 40;
-const BALL_SIZE = 30;
-const MAX_PULL_DISTANCE = 150;
-const POWER_FACTOR = 0.2;
-const DAMPING_FACTOR = 0.985;
-const WALL_BOUNCE_FACTOR = 0.85;
-const BALL_COLLISION_BOUNCE_FACTOR = 0.98;
-const MIN_VELOCITY_THRESHOLD = 0.05;
-const ARROW_COLOR = 'rgba(255, 255, 255, 0.7)';
-const ARROW_MAX_WIDTH = 8;
-const GOAL_HEIGHT = 100;
+// Import components
+import GameMenu from './components/GameMenu';
+
+// Import AI logic
+import { calculateAIMove, executeAIMove } from './ai/GameAI';
+
+// Import constants
+import {
+  PLAYER_SIZE,
+  BALL_SIZE,
+  MAX_PULL_DISTANCE,
+  POWER_FACTOR,
+  DAMPING_FACTOR,
+  WALL_BOUNCE_FACTOR,
+  BALL_COLLISION_BOUNCE_FACTOR,
+  MIN_VELOCITY_THRESHOLD,
+  ARROW_COLOR,
+  ARROW_MAX_WIDTH,
+  GOAL_HEIGHT,
+  GAME_MODES,
+  AI_DIFFICULTY
+} from './constants';
 
 // Team and player setup
-const initialGameState = () => {
+const initialGameState = (gameMode = GAME_MODES.VS_PLAYER, aiDifficulty = AI_DIFFICULTY.MEDIUM) => {
   const fieldWidth = 600;
   const fieldHeight = 400;
   
@@ -96,26 +106,32 @@ const initialGameState = () => {
     currentTeam: 1,  // Team 1 starts
     selectedPlayerId: null,  // No player selected initially
     isMoving: false,
-    score: { team1: 0, team2: 0 }
+    score: { team1: 0, team2: 0 },
+    gameMode: gameMode,
+    aiDifficulty: aiDifficulty
   };
 };
 
 function SoccerStarsGame() {
-  const [gameState, setGameState] = useState(initialGameState);
+  // State initialization
+  const [showGameModeSelection, setShowGameModeSelection] = useState(true);
+  const [gameMode, setGameMode] = useState(GAME_MODES.VS_PLAYER);
+  const [aiDifficulty, setAiDifficulty] = useState(AI_DIFFICULTY.MEDIUM);
+  const [gameState, setGameState] = useState(() => initialGameState(GAME_MODES.VS_PLAYER, AI_DIFFICULTY.MEDIUM));
   const [isDragging, setIsDragging] = useState(false);
   const [startDragPos, setStartDragPos] = useState({ x: 0, y: 0 });
   const [currentDragPos, setCurrentDragPos] = useState({ x: 0, y: 0 });
   
+  // Refs
   const containerRef = useRef(null);
   const activePlayerRef = useRef(null);
   const animationFrameRef = useRef(null);
+  const aiTimeoutRef = useRef(null);
   
   // Get selected player
   const getSelectedPlayer = useCallback(() => {
     return gameState.balls.find(b => b.id === gameState.selectedPlayerId);
   }, [gameState.balls, gameState.selectedPlayerId]);
-  
-  // Goal checking is now handled directly in the updatePhysics function
   
   // Select a player
   const selectPlayer = useCallback((playerId) => {
@@ -129,6 +145,8 @@ function SoccerStarsGame() {
       selectedPlayerId: playerId
     }));
   }, [gameState.isMoving, gameState.currentTeam, gameState.balls]);
+  
+  // Goal checking is now handled directly in the updatePhysics function
   
   // We don't need a separate function to check if pieces are still
   // as this is now handled directly in the updatePhysics function
@@ -214,6 +232,57 @@ function SoccerStarsGame() {
     });
   }, [isDragging, startDragPos, currentDragPos, getSelectedPlayer]);
   
+  // Helper function for AI to make a move - using the imported function
+  const handleAIMove = useCallback(() => {
+    // Get game constants to pass to AI functions
+    const gameConstants = {
+      MAX_PULL_DISTANCE,
+      POWER_FACTOR,
+      MIN_VELOCITY_THRESHOLD
+    };
+    
+    // Calculate the best move
+    const aiMove = calculateAIMove(
+      gameState,
+      aiDifficulty,
+      containerRef,
+      selectPlayer,
+      gameConstants
+    );
+    
+    // If a move was found, execute it after a delay
+    if (aiMove) {
+      aiTimeoutRef.current = setTimeout(() => {
+        executeAIMove(aiMove, setGameState, gameConstants);
+      }, 1000); // 1 second delay to make it feel more natural
+    }
+  }, [gameState, aiDifficulty, selectPlayer]);
+  
+  // Effect to trigger AI move when it's AI's turn
+  useEffect(() => {
+    // If it's AI's turn and the game is not in motion
+    if (gameMode === GAME_MODES.VS_AI && 
+        gameState.currentTeam === 2 && 
+        !gameState.isMoving && 
+        !showGameModeSelection) {
+      // Clear any existing timeout
+      if (aiTimeoutRef.current) {
+        clearTimeout(aiTimeoutRef.current);
+      }
+      
+      // Add a small delay before AI makes a move
+      aiTimeoutRef.current = setTimeout(() => {
+        handleAIMove();
+      }, 1000); // 1 second delay
+    }
+    
+    return () => {
+      if (aiTimeoutRef.current) {
+        clearTimeout(aiTimeoutRef.current);
+      }
+    };
+  }, [gameMode, gameState.currentTeam, gameState.isMoving, showGameModeSelection, handleAIMove]);
+
   // Physics update effect
   useEffect(() => {
     const container = containerRef.current;
@@ -341,52 +410,64 @@ function SoccerStarsGame() {
           }
         }
         
-        // If pieces have stopped moving, check for goals and change the turn
+        // Check for goals (continuously during gameplay)
+        const ball = newBalls.find(b => b.id === 'ball');
+        const goalY = containerHeight / 2;
+        const halfGoalHeight = GOAL_HEIGHT / 2;
+        let newScore = {...prev.score};
+        let goalScored = false;
+        
+        // Check if ball is in left goal (team 2 scores)
+        if (ball.id === 'ball' && 
+            ball.pos.x < 10 && 
+            ball.pos.y > goalY - halfGoalHeight && 
+            ball.pos.y < goalY + halfGoalHeight) {
+          newScore.team2 += 1;
+          goalScored = true;
+          console.log('Goal scored by Team 2 (Blue)!');
+        }
+        
+        // Check if ball is in right goal (team 1 scores)
+        if (ball.id === 'ball' && 
+            ball.pos.x > containerWidth - 10 && 
+            ball.pos.y > goalY - halfGoalHeight && 
+            ball.pos.y < goalY + halfGoalHeight) {
+          newScore.team1 += 1;
+          goalScored = true;
+          console.log('Goal scored by Team 1 (Red)!');
+        }
+        
+        if (goalScored) {
+          // Reset the game with updated score if goal scored
+          const initialState = initialGameState(prev.gameMode, prev.aiDifficulty);
+          return {
+            ...initialState,
+            score: newScore,
+            gameMode: prev.gameMode,
+            aiDifficulty: prev.aiDifficulty
+          };
+        }
+        
+        // If pieces have stopped moving, change the turn
         const shouldChangeTurn = prev.isMoving && !isStillMoving;
         
         if (shouldChangeTurn) {
-          // Check for goals when pieces stop moving
-          const ball = newBalls.find(b => b.id === 'ball');
-          const goalY = containerHeight / 2;
-          const halfGoalHeight = GOAL_HEIGHT / 2;
-          let newScore = {...prev.score};
-          let goalScored = false;
-          
-          // Check if ball is in left goal (team 2 scores)
-          if (ball.pos.x < 10 && 
-              ball.pos.y > goalY - halfGoalHeight && 
-              ball.pos.y < goalY + halfGoalHeight) {
-            newScore.team2 += 1;
-            goalScored = true;
-          }
-          
-          // Check if ball is in right goal (team 1 scores)
-          if (ball.pos.x > containerWidth - 10 && 
-              ball.pos.y > goalY - halfGoalHeight && 
-              ball.pos.y < goalY + halfGoalHeight) {
-            newScore.team1 += 1;
-            goalScored = true;
-          }
-          
-          if (goalScored) {
-            // Reset the game with updated score if goal scored
-            const initialState = initialGameState();
-            return {
-              ...initialState,
-              score: newScore
-            };
-          }
+          return {
+            ...prev,
+            balls: newBalls,
+            isMoving: false,
+            // Change turn when movement stops
+            currentTeam: prev.currentTeam === 1 ? 2 : 1,
+            // Clear selected player when turn changes
+            selectedPlayerId: null
+          };
+        } else {
+          return {
+            ...prev,
+            balls: newBalls,
+            isMoving: isStillMoving
+          };
         }
-        
-        return {
-          ...prev,
-          balls: newBalls,
-          isMoving: isStillMoving,
-          // If we're stopping movement, change the turn
-          currentTeam: shouldChangeTurn ? (prev.currentTeam === 1 ? 2 : 1) : prev.currentTeam,
-          // Clear selected player when turn changes
-          selectedPlayerId: shouldChangeTurn ? null : prev.selectedPlayerId
-        };
       });
       
       animationFrameRef.current = requestAnimationFrame(updatePhysics);
@@ -467,34 +548,67 @@ function SoccerStarsGame() {
   
   // Restart game
   const handleRestart = () => {
-    setGameState(initialGameState);
+    setGameState(initialGameState(gameMode, aiDifficulty));
   };
   
-  // Get selected player
+  // Start a new game with selected mode
+  const startGame = (mode, difficulty = AI_DIFFICULTY.MEDIUM) => {
+    setGameMode(mode);
+    setAiDifficulty(difficulty);
+    setGameState(initialGameState(mode, difficulty));
+    setShowGameModeSelection(false);
+  };
+  
+  // Return to game mode selection
+  const returnToModeSelection = () => {
+    setShowGameModeSelection(true);
+    // Clear any pending AI moves
+    if (aiTimeoutRef.current) {
+      clearTimeout(aiTimeoutRef.current);
+      aiTimeoutRef.current = null;
+    }
+  };
+  
+
+  
+  // This has been moved up before the return statement
+  
+  // Get selected player for rendering
   const selectedPlayer = getSelectedPlayer();
   
   return (
     <div className="flex flex-col justify-center items-center h-screen bg-gray-800 p-4">
-      <div className="mb-4 w-full max-w-[600px] flex justify-between items-center text-white">
-        <div className="text-red-500 font-bold text-xl">Red: {gameState.score.team1}</div>
-        <div className="bg-gray-600 px-4 py-2 rounded-lg">
-          {gameState.isMoving ? (
-            <span>Balls in motion...</span>
-          ) : (
-            <span>
-              {gameState.currentTeam === 1 ? "🔴 Red" : "🔵 Blue"}'s turn
-              {!gameState.selectedPlayerId && " - Select a player"}
-            </span>
-          )}
-        </div>
-        <div className="text-blue-500 font-bold text-xl">Blue: {gameState.score.team2}</div>
-      </div>
-      
-      <div 
-        ref={containerRef} 
-        className="relative w-full max-w-[600px] h-[400px] bg-green-800 border-4 border-gray-400 rounded-lg overflow-hidden cursor-default"
-        style={{ touchAction: 'none' }}
-      >
+      {showGameModeSelection ? (
+        <GameMenu
+          gameMode={gameMode}
+          setGameMode={setGameMode}
+          aiDifficulty={aiDifficulty}
+          setAiDifficulty={setAiDifficulty}
+          startGame={startGame}
+        />
+      ) : (
+        <>
+          <div className="mb-4 w-full max-w-[600px] flex justify-between items-center text-white">
+            <div className="text-red-500 font-bold text-xl">Red: {gameState.score.team1}</div>
+            <div className="bg-gray-600 px-4 py-2 rounded-lg">
+              {gameState.isMoving ? (
+                <span>Balls in motion...</span>
+              ) : (
+                <span>
+                  {gameState.currentTeam === 1 ? "🔴 Red" : "🔵 Blue"}'s turn
+                  {gameState.currentTeam === 2 && gameMode === GAME_MODES.VS_AI ? " (AI)" : ""}
+                  {!gameState.selectedPlayerId && gameState.currentTeam === 1 && " - Select a player"}
+                </span>
+              )}
+            </div>
+            <div className="text-blue-500 font-bold text-xl">Blue: {gameState.score.team2}</div>
+          </div>
+          
+          <div 
+            ref={containerRef} 
+            className="relative w-full max-w-[600px] h-[400px] bg-green-800 border-4 border-gray-400 rounded-lg overflow-hidden cursor-default"
+            style={{ touchAction: 'none' }}
+          >
         {/* Field markings */}
         <div className="absolute top-0 left-0 w-full h-full">
           {/* Center circle */}
@@ -546,19 +660,36 @@ function SoccerStarsGame() {
         {/* Shooting arrow */}
         {isDragging && <div style={getArrowStyle()}></div>}
         
-        {/* Reset button */}
-        <button 
-          className="absolute bottom-4 right-4 bg-gray-700 text-white px-3 py-1 rounded-md hover:bg-gray-600"
-          onClick={handleRestart}
-        >
-          Restart
-        </button>
+        {/* Game control buttons */}
+        <div className="absolute bottom-4 right-4 flex space-x-2">
+          <button 
+            className="bg-gray-700 text-white px-3 py-1 rounded-md hover:bg-gray-600"
+            onClick={returnToModeSelection}
+          >
+            Menu
+          </button>
+          <button 
+            className="bg-gray-700 text-white px-3 py-1 rounded-md hover:bg-gray-600"
+            onClick={handleRestart}
+          >
+            Restart
+          </button>
+        </div>
       </div>
       
       <div className="mt-4 text-white text-center">
-        <p>Click on any of your team players to select, then drag to shoot. Take turns to score in the opponent's goal.</p>
+        <p>
+          {gameMode === GAME_MODES.VS_PLAYER
+            ? "Click on any of your team players to select, then drag to shoot. Take turns to score in the opponent's goal."
+            : "You play as Red. Click on any of your players to select, then drag to shoot. The AI plays as Blue."}
+        </p>
+        {gameMode === GAME_MODES.VS_AI && (
+          <p className="mt-2 text-sm text-gray-400">AI Difficulty: {aiDifficulty}</p>
+        )}
       </div>
-    </div>
+    </>
+    )}
+  </div>
   );
 }
 
