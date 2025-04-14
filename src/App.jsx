@@ -2,9 +2,27 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 
 // Import components
 import GameMenu from "./components/GameMenu";
+import MultiplayerMenu from "./components/MultiplayerMenu";
+import WaitingRoom from "./components/WaitingRoom";
+import MatchmakingQueue from "./components/MatchmakingQueue";
 
 // Import AI logic
 import { calculateAIMove, executeAIMove } from "./ai/GameAI";
+
+// Import Socket.IO service
+import {
+  initializeSocket,
+  disconnectSocket,
+  registerCallbacks,
+  leaveRoom,
+  joinMatchmaking,
+  leaveMatchmaking,
+  setPlayerReady as socketSetPlayerReady,
+  sendGameMove,
+  updateGameState,
+  sendGameOver,
+  getSocketId
+} from "./services/socketService";
 
 // Import game images
 import fieldImage from "./assets/images/field.png";
@@ -137,6 +155,20 @@ function SoccerStarsGame() {
   const [cameraShake, setCameraShake] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [winner, setWinner] = useState(null);
+  
+  // Online multiplayer states
+  const [showMultiplayerMenu, setShowMultiplayerMenu] = useState(false);
+  const [showWaitingRoom, setShowWaitingRoom] = useState(false);
+  const [showMatchmakingQueue, setShowMatchmakingQueue] = useState(false);
+  const [roomId, setRoomId] = useState(null);
+  // Socket ID and player role for online play
+  const [playerId, setPlayerId] = useState(null);
+  const [isHost, setIsHost] = useState(false);
+  const [playerTeam, setPlayerTeam] = useState(1);
+  const [playerReady, setPlayerReady] = useState(false);
+  const [opponentReady, setOpponentReady] = useState(false);
+  const [isOnlineGameStarted, setIsOnlineGameStarted] = useState(false);
+  const [isMyTurn, setIsMyTurn] = useState(true); // For online mode
 
   // Refs
   const containerRef = useRef(null);
@@ -585,6 +617,11 @@ function SoccerStarsGame() {
             // Game over - set winner
             setGameOver(true);
             setWinner(newScore.team1 >= 3 ? 1 : 2);
+            
+            // For online mode, notify opponent about game over
+            if (gameMode === GAME_MODES.ONLINE) {
+              sendGameOver(roomId, newScore.team1 >= 3 ? 1 : 2);
+            }
           }
           
           // Reset the game with updated score if goal scored
@@ -604,6 +641,25 @@ function SoccerStarsGame() {
           // Reset AI processing flag when turn changes
           if (prev.currentTeam === 2) {
             setIsAiProcessing(false);
+          }
+          
+          // For online mode, update turn state and send game state to opponent
+          if (gameMode === GAME_MODES.ONLINE) {
+            // It's my turn if the current team is my team
+            const nextTeam = prev.currentTeam === 1 ? 2 : 1;
+            setIsMyTurn(nextTeam === playerTeam);
+            
+            // Send updated game state to opponent
+            const updatedState = {
+              ...prev,
+              balls: newBalls,
+              isMoving: false,
+              currentTeam: nextTeam,
+              selectedPlayerId: null,
+            };
+            
+            updateGameState(roomId, updatedState);
+            return updatedState;
           }
 
           return {
@@ -718,21 +774,225 @@ function SoccerStarsGame() {
   // Start a new game with selected mode
   const startGame = (mode) => {
     setGameMode(mode);
-    setGameState(initialGameState(mode));
-    setShowGameModeSelection(false);
-    setIsAiProcessing(false); // Reset AI processing state when starting a new game
-    setGameOver(false); // Reset game over state
-    setWinner(null); // Reset winner
+    
+    if (mode === GAME_MODES.ONLINE) {
+      // For online mode, show the multiplayer menu first
+      setShowGameModeSelection(false);
+      setShowMultiplayerMenu(true);
+      
+      // Initialize Socket.IO connection
+      initializeSocket();
+      setupSocketCallbacks();
+    } else {
+      // For local modes (VS_PLAYER, VS_AI)
+      setGameState(initialGameState(mode));
+      setShowGameModeSelection(false);
+      setIsAiProcessing(false); // Reset AI processing state when starting a new game
+      setGameOver(false); // Reset game over state
+      setWinner(null); // Reset winner
+    }
+  };
+  
+  // Setup Socket.IO event callbacks
+  const setupSocketCallbacks = () => {
+    registerCallbacks({
+      // Connection events
+      onConnect: (id) => {
+        console.log('Connected with ID:', id);
+        setPlayerId(id);
+      },
+      
+      // Matchmaking events
+      joinedMatchmaking: () => {
+        console.log('Joined matchmaking queue');
+      },
+      
+      leftMatchmaking: () => {
+        console.log('Left matchmaking queue');
+      },
+      
+      matchFound: (data) => {
+        console.log('Match found:', data);
+        setRoomId(data.roomId);
+        setPlayerTeam(data.team);
+        setIsHost(data.team === 1); // Team 1 is considered the host
+        setShowMatchmakingQueue(false);
+        setShowWaitingRoom(true);
+      },
+      
+      matchmakingContinued: () => {
+        console.log('Matchmaking continued due to opponent disconnect');
+      },
+      
+      // Room events
+      roomCreated: (data) => {
+        console.log('Room created:', data);
+        setRoomId(data.roomId);
+        setPlayerTeam(data.team);
+        setIsHost(true);
+        setShowMultiplayerMenu(false);
+        setShowWaitingRoom(true);
+      },
+      
+      roomJoined: (data) => {
+        console.log('Room joined:', data);
+        setRoomId(data.roomId);
+        setPlayerTeam(data.team);
+        setIsHost(false);
+        setShowMultiplayerMenu(false);
+        setShowWaitingRoom(true);
+      },
+      
+      playerJoined: (data) => {
+        console.log('Player joined:', data);
+      },
+      
+      playerStatusUpdate: (data) => {
+        console.log('Player status update:', data);
+        if (data.playerId !== getSocketId()) {
+          setOpponentReady(data.ready);
+        }
+      },
+      
+      // Game events
+      gameStart: () => {
+        console.log('Game starting!');
+        setShowWaitingRoom(false);
+        setIsOnlineGameStarted(true);
+        setIsMyTurn(playerTeam === 1); // Team 1 goes first
+        
+        // Initialize game state for online mode
+        const initialState = initialGameState(GAME_MODES.ONLINE);
+        setGameState(initialState);
+        
+        // If host, send initial game state
+        if (isHost) {
+          updateGameState(roomId, initialState);
+        }
+      },
+      
+      opponentMove: ({ move }) => {
+        console.log('Opponent move received:', move);
+        
+        // Apply opponent's move
+        setGameState((prev) => {
+          const newBalls = [...prev.balls];
+          const playerIndex = newBalls.findIndex(ball => ball.id === move.playerId);
+          
+          if (playerIndex !== -1) {
+            newBalls[playerIndex].vel = { x: move.velX, y: move.velY };
+            
+            return {
+              ...prev,
+              balls: newBalls,
+              isMoving: true,
+            };
+          }
+          
+          return prev;
+        });
+        
+        // It's now my turn (will be switched back when pieces stop moving)
+        setIsMyTurn(false);
+      },
+      
+      gameStateUpdated: ({ gameState: newState }) => {
+        console.log('Game state updated from server:', newState);
+        // Only update if not host or if game is in progress
+        if (!isHost || gameState.isMoving) {
+          setGameState(newState);
+        }
+      },
+      
+      gameEnded: ({ winner }) => {
+        console.log('Game ended, winner:', winner);
+        setGameOver(true);
+        setWinner(winner);
+        setPlayerReady(false);
+        setOpponentReady(false);
+      },
+      
+      playerLeft: (data) => {
+        console.log('Player left:', data);
+        // Handle opponent disconnection
+        if (isOnlineGameStarted) {
+          alert('Your opponent has left the game.');
+          returnToMultiplayerMenu();
+        } else if (showWaitingRoom) {
+          alert('Your opponent has left the waiting room.');
+          returnToMultiplayerMenu();
+        }
+      },
+      
+      error: (error) => {
+        console.error('Socket error:', error);
+        alert(`Error: ${error.message}`);
+      }
+    });
   };
 
   // Return to game mode selection
   const returnToModeSelection = () => {
     setShowGameModeSelection(true);
+    setShowMultiplayerMenu(false);
+    setShowWaitingRoom(false);
+    setShowMatchmakingQueue(false);
+    setIsOnlineGameStarted(false);
+    
+    // Leave matchmaking queue if active
+    if (showMatchmakingQueue) {
+      leaveMatchmaking();
+    }
+    
+    // Disconnect from Socket.IO if in online mode
+    if (gameMode === GAME_MODES.ONLINE) {
+      disconnectSocket();
+    }
+    
     // Clear any pending AI moves
     if (aiTimeoutRef.current) {
       clearTimeout(aiTimeoutRef.current);
       aiTimeoutRef.current = null;
     }
+  };
+  
+  // Online multiplayer functions
+  const handleJoinMatchmaking = () => {
+    // Show matchmaking queue and join it
+    setShowMultiplayerMenu(false);
+    setShowMatchmakingQueue(true);
+    joinMatchmaking();
+  };
+  
+  const handlePlayerReady = () => {
+    // Update local state
+    setPlayerReady(true);
+    // Send ready status to server
+    socketSetPlayerReady(roomId);
+  };
+  
+  const cancelMatchmaking = () => {
+    // Leave matchmaking queue
+    leaveMatchmaking();
+    // Return to multiplayer menu
+    setShowMatchmakingQueue(false);
+    setShowMultiplayerMenu(true);
+  };
+  
+  const returnToMultiplayerMenu = () => {
+    // Leave current room
+    if (roomId) {
+      leaveRoom(roomId);
+    }
+    
+    // Reset online game states
+    setRoomId(null);
+    setIsHost(false);
+    setPlayerReady(false);
+    setOpponentReady(false);
+    setShowWaitingRoom(false);
+    setIsOnlineGameStarted(false);
+    setShowMultiplayerMenu(true);
   };
 
   // This has been moved up before the return statement
@@ -743,6 +1003,22 @@ function SoccerStarsGame() {
     <div className="flex flex-col justify-center items-center min-h-screen bg-gray-800 p-4">
       {showGameModeSelection ? (
         <GameMenu aiDifficulty={aiDifficulty} startGame={startGame} />
+      ) : showMatchmakingQueue ? (
+        <MatchmakingQueue onCancel={cancelMatchmaking} />
+      ) : showMultiplayerMenu ? (
+        <MultiplayerMenu 
+          onJoinMatchmaking={handleJoinMatchmaking}
+          onReturnToMainMenu={returnToModeSelection}
+        />
+      ) : showWaitingRoom ? (
+        <WaitingRoom 
+          roomId={roomId}
+          isHost={isHost}
+          onReady={handlePlayerReady}
+          onCancel={returnToMultiplayerMenu}
+          opponentReady={opponentReady}
+          playerReady={playerReady}
+        />
       ) : gameOver ? (
         // Game Over Screen
         <div className="flex flex-col items-center justify-center bg-gray-700 rounded-lg p-8 shadow-lg text-white max-w-[400px] w-full">

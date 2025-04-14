@@ -14,7 +14,8 @@ export const GOAL_HEIGHT = 100;
 // Game modes
 export const GAME_MODES = {
   VS_PLAYER: 'vs_player',
-  VS_AI: 'vs_ai'
+  VS_AI: 'vs_ai',
+  ONLINE: 'online'
 };
 
 // AI difficulty levels

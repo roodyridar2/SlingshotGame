@@ -33,9 +33,14 @@ function GameMenu({
         </button>
       </div>
       
-
+      <button 
+        className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 px-4 rounded-lg flex flex-col items-center mb-6"
+        onClick={() => startGame(GAME_MODES.ONLINE)}
+      >
+        <span className="text-lg font-bold">Online Multiplayer</span>
+        <span className="text-sm mt-1">Play against other players online</span>
+      </button>
       
-
     </div>
   );
 }
