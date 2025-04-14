@@ -26,7 +26,7 @@ import {
 } from './constants';
 
 // Team and player setup
-const initialGameState = (gameMode = GAME_MODES.VS_PLAYER, aiDifficulty = DEFAULT_AI_DIFFICULTY) => {
+const initialGameState = (gameMode = GAME_MODES.VS_PLAYER) => {
   const fieldWidth = 600;
   const fieldHeight = 400;
   
@@ -110,7 +110,7 @@ const initialGameState = (gameMode = GAME_MODES.VS_PLAYER, aiDifficulty = DEFAUL
     isMoving: false,
     score: { team1: 0, team2: 0 },
     gameMode: gameMode,
-    aiDifficulty: aiDifficulty
+    aiDifficulty: AI_DIFFICULTY.HARD
   };
 };
 
@@ -118,8 +118,9 @@ function SoccerStarsGame() {
   // State initialization
   const [showGameModeSelection, setShowGameModeSelection] = useState(true);
   const [gameMode, setGameMode] = useState(GAME_MODES.VS_PLAYER);
-  const [aiDifficulty, setAiDifficulty] = useState(DEFAULT_AI_DIFFICULTY);
-  const [gameState, setGameState] = useState(() => initialGameState(GAME_MODES.VS_PLAYER, DEFAULT_AI_DIFFICULTY));
+  // Always use hard difficulty
+  const [aiDifficulty] = useState(AI_DIFFICULTY.HARD);
+  const [gameState, setGameState] = useState(() => initialGameState(GAME_MODES.VS_PLAYER));
   const [isDragging, setIsDragging] = useState(false);
   const [startDragPos, setStartDragPos] = useState({ x: 0, y: 0 });
   const [currentDragPos, setCurrentDragPos] = useState({ x: 0, y: 0 });
@@ -245,12 +246,6 @@ function SoccerStarsGame() {
       return;
     }
     
-    // Get game constants to pass to AI functions
-    const gameConstants = {
-      MAX_PULL_DISTANCE,
-      POWER_FACTOR,
-      MIN_VELOCITY_THRESHOLD
-    };
     
     try {
       // Calculate AI move based on current difficulty level
@@ -258,13 +253,12 @@ function SoccerStarsGame() {
         gameState,
         aiDifficulty, // Use current difficulty setting
         containerRef,
-        selectPlayer,
-        gameConstants
+        selectPlayer
       );
       
       if (aiMove) {
         // Execute the calculated AI move
-        executeAIMove(aiMove, setGameState, gameConstants);
+        executeAIMove(aiMove, setGameState);
         setIsAiProcessing(false); // Reset flag after successful execution
       } else {
         // Fallback to simple move if no good move found
@@ -509,7 +503,7 @@ function SoccerStarsGame() {
         
         if (goalScored) {
           // Reset the game with updated score if goal scored
-          const initialState = initialGameState(prev.gameMode, prev.aiDifficulty);
+          const initialState = initialGameState(prev.gameMode);
           return {
             ...initialState,
             score: newScore,
@@ -623,14 +617,13 @@ function SoccerStarsGame() {
   
   // Restart game
   const handleRestart = () => {
-    setGameState(initialGameState(gameMode, aiDifficulty));
+    setGameState(initialGameState(gameMode));
   };
   
   // Start a new game with selected mode
-  const startGame = (mode, difficulty = DEFAULT_AI_DIFFICULTY) => {
+  const startGame = (mode) => {
     setGameMode(mode);
-    setAiDifficulty(difficulty);
-    setGameState(initialGameState(mode, difficulty));
+    setGameState(initialGameState(mode));
     setShowGameModeSelection(false);
     setIsAiProcessing(false); // Reset AI processing state when starting a new game
   };
@@ -748,31 +741,7 @@ function SoccerStarsGame() {
           </button>
         </div>
         
-        {/* AI Difficulty Controls (only shown in VS_AI mode) */}
-        {gameMode === GAME_MODES.VS_AI && (
-          <div className="absolute bottom-4 left-4 flex items-center">
-            <div className="flex space-x-1">
-              <button 
-                className={`px-2 py-1 text-xs rounded-md ${aiDifficulty === AI_DIFFICULTY.EASY ? 'bg-yellow-600 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-                onClick={() => setAiDifficulty(AI_DIFFICULTY.EASY)}
-              >
-                Easy
-              </button>
-              <button 
-                className={`px-2 py-1 text-xs rounded-md ${aiDifficulty === AI_DIFFICULTY.MEDIUM ? 'bg-yellow-600 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-                onClick={() => setAiDifficulty(AI_DIFFICULTY.MEDIUM)}
-              >
-                Medium
-              </button>
-              <button 
-                className={`px-2 py-1 text-xs rounded-md ${aiDifficulty === AI_DIFFICULTY.HARD ? 'bg-yellow-600 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-                onClick={() => setAiDifficulty(AI_DIFFICULTY.HARD)}
-              >
-                Hard
-              </button>
-            </div>
-          </div>
-        )}
+        {/* AI Difficulty Controls removed - game always uses hard difficulty */}
       </div>
       
       <div className="mt-4 text-white text-center">
@@ -782,7 +751,7 @@ function SoccerStarsGame() {
             : "You play as Red. Click on any of your players to select, then drag to shoot. The AI plays as Blue."}
         </p>
         {gameMode === GAME_MODES.VS_AI && (
-          <p className="mt-2 text-sm text-gray-400">AI Difficulty: {aiDifficulty}</p>
+          <p className="mt-2 text-sm text-gray-400">AI Difficulty: Hard</p>
         )}
       </div>
     </>

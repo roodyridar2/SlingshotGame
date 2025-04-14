@@ -1,13 +1,12 @@
 import React from 'react';
 
 // Game modes and AI difficulty levels imported from constants
-import { GAME_MODES, AI_DIFFICULTY } from '../constants';
+import { GAME_MODES } from '../constants';
 
 /**
- * Game menu component for selecting game mode and AI difficulty
+ * Game menu component for selecting game mode
  */
 function GameMenu({ 
-  aiDifficulty, 
   startGame 
 }) {
   return (
@@ -27,7 +26,7 @@ function GameMenu({
         
         <button 
           className="bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg flex flex-col items-center"
-          onClick={() => startGame(GAME_MODES.VS_AI, aiDifficulty)}
+          onClick={() => startGame(GAME_MODES.VS_AI)}
         >
           <span className="text-lg font-bold">vs AI</span>
           <span className="text-sm mt-1">Play against the computer</span>
