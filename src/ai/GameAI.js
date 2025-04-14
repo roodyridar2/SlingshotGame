@@ -5,7 +5,8 @@ import {
   BALL_SIZE, 
   MAX_PULL_DISTANCE,
   POWER_FACTOR,
-  WALL_BOUNCE_FACTOR
+  WALL_BOUNCE_FACTOR,
+  GOAL_HEIGHT
 } from '../constants';
 
 /**
@@ -38,14 +39,25 @@ export const calculateAIMove = (
   const opponentPlayers = gameState.balls.filter(b => b.isPlayer && b.team === 1);
   const obstacles = opponentPlayers.map(p => ({ pos: p.pos, radius: PLAYER_SIZE / 2 }));
     
-    // Calculate target points within opponent's goal (left side at x=0)
-    const goalHeight = fieldHeight / 4; // Goal is typically smaller than field height
+    // Determine which goal to target based on AI team
+    // AI is team 2 (Blue), so it should target the left goal (opponent's goal)
+    // The game logic shows Team 2 scores when ball enters left goal, Team 1 scores when ball enters right goal
+    const goalHeight = GOAL_HEIGHT || fieldHeight / 4; // Use the defined GOAL_HEIGHT constant
     const targetPoints = [];
-    const numTargetPoints = 5; // More target points for better precision
+    const numTargetPoints = aiDifficulty === AI_DIFFICULTY.HARD ? 9 : 5; // More target points for hard difficulty
     
+    // Target the LEFT goal (opponent's goal) - AI is team 2 (Blue)
     for (let i = 0; i < numTargetPoints; i++) {
       const y = goalY - goalHeight/2 + (i * goalHeight/(numTargetPoints-1));
-      targetPoints.push({ x: 0, y });
+      targetPoints.push({ x: 0, y }); // Left side of the field (x = 0)
+    }
+    
+    // Add some strategic points slightly inside the field for more accurate shots
+    if (aiDifficulty === AI_DIFFICULTY.HARD) {
+      for (let i = 1; i < 4; i += 2) {
+        const y = goalY - goalHeight/3 + (i * goalHeight/3);
+        targetPoints.push({ x: 10, y }); // Slightly inside the field from left side
+      }
     }
     
     // Check for possible bank shots (1-cushion rebounds)
@@ -93,13 +105,21 @@ export const calculateAIMove = (
           target.x - ball.pos.x
         );
         
-        // Calculate optimal impact point on the ball
+        // Calculate optimal impact point on the ball with improved precision
         // For a direct shot, we want to hit the ball slightly off-center
         // to impart the correct direction
         const impactOffsetAngle = angleBallToTarget;
+        
+        // Adjust impact offset based on difficulty
+        const impactOffset = aiDifficulty === AI_DIFFICULTY.HARD ? 
+          BALL_SIZE / 2.5 : 
+          aiDifficulty === AI_DIFFICULTY.MEDIUM ? 
+            BALL_SIZE / 3 : 
+            BALL_SIZE / 4;
+            
         const impactPoint = {
-          x: ball.pos.x - Math.cos(impactOffsetAngle) * (BALL_SIZE / 3),
-          y: ball.pos.y - Math.sin(impactOffsetAngle) * (BALL_SIZE / 3)
+          x: ball.pos.x - Math.cos(impactOffsetAngle) * impactOffset,
+          y: ball.pos.y - Math.sin(impactOffsetAngle) * impactOffset
         };
         
         // Calculate the angle the player should approach to hit the impact point
@@ -138,9 +158,32 @@ export const calculateAIMove = (
             
             // Calculate optimal power based on distance and desired ball speed
             // Use physics principles to determine the right amount of force
-            const optimalBallSpeed = Math.min(distBallToTarget * 0.4, MAX_PULL_DISTANCE);
-            const powerFactor = 1.2; // Slightly more power to ensure the ball reaches the target
-            bestPower = Math.min(MAX_PULL_DISTANCE, optimalBallSpeed * powerFactor) * AI_POWER_SCALING_FACTOR;
+            const optimalBallSpeed = Math.min(distBallToTarget * 0.5, MAX_PULL_DISTANCE);
+            
+            // Adjust power factor based on difficulty
+            let powerFactor;
+            let difficultyScaling;
+            
+            switch(aiDifficulty) {
+              case AI_DIFFICULTY.HARD:
+                powerFactor = 1.3; // More power for hard difficulty
+                difficultyScaling = 1.2; // 120% power for hard
+                break;
+              case AI_DIFFICULTY.MEDIUM:
+                powerFactor = 1.2;
+                difficultyScaling = 1.0; // 100% power for medium
+                break;
+              default: // EASY
+                powerFactor = 1.1;
+                difficultyScaling = 0.8; // 80% power for easy
+            }
+            
+            // Calculate power with distance-based adjustment
+            const distanceAdjustment = 1 + (distBallToTarget / fieldWidth) * 0.2;
+            bestPower = Math.min(
+              MAX_PULL_DISTANCE, 
+              optimalBallSpeed * powerFactor * distanceAdjustment
+            ) * AI_POWER_SCALING_FACTOR * difficultyScaling;
             
             bestIsBankShot = false;
           }
@@ -198,9 +241,11 @@ export const calculateAIMove = (
             if (isPathClear(ball.pos, wallPoint, obstacles, BALL_SIZE) && 
                 isPathClear(wallPoint, target, obstacles, BALL_SIZE)) {
               
-              // Calculate precision score - how well the player is positioned for this shot
+                      // Calculate precision score with improved weighting for hard difficulty
               const angleDifference = Math.abs(normalizeAngle(hitAngle - anglePlayerToBall));
-              const angleScore = 1 - (angleDifference / Math.PI);
+              // Hard difficulty AI is better at making shots from difficult angles
+              const angleScoreMultiplier = aiDifficulty === AI_DIFFICULTY.HARD ? 1.2 : 1.0;
+              const angleScore = (1 - (angleDifference / Math.PI)) * angleScoreMultiplier;
               
               // Calculate position score
               const distanceFactor = 1 - (distPlayerToBall / (MAX_PULL_DISTANCE * 1.5));
@@ -232,18 +277,31 @@ export const calculateAIMove = (
                 bestPlayer = player;
                 bestAngle = hitAngle;
                 
-                // Calculate optimal power with physics compensation
+                // Calculate optimal power with improved physics compensation
                 const totalDistance = distPlayerToBall + distBallToWall + distWallToTarget;
                 
                 // Compensate for energy loss on bounce using the wall bounce factor
                 // Add extra power for longer shots
-                const distanceCompensation = 1 + (totalDistance / (fieldWidth * 1.5)) * 0.3;
-                const bounceCompensation = 1 / WALL_BOUNCE_FACTOR;
+                const distanceCompensation = 1 + (totalDistance / (fieldWidth * 1.5)) * 0.4;
+                const bounceCompensation = 1 / (WALL_BOUNCE_FACTOR * 0.95); // Additional compensation
+                
+                // Adjust power based on difficulty
+                let difficultyScaling;
+                switch(aiDifficulty) {
+                  case AI_DIFFICULTY.HARD:
+                    difficultyScaling = 1.25; // 125% power for hard
+                    break;
+                  case AI_DIFFICULTY.MEDIUM:
+                    difficultyScaling = 1.0; // 100% power for medium
+                    break;
+                  default: // EASY
+                    difficultyScaling = 0.8; // 80% power for easy
+                }
                 
                 bestPower = Math.min(
                   MAX_PULL_DISTANCE,
-                  totalDistance * 0.5 * distanceCompensation * bounceCompensation
-                ) * AI_POWER_SCALING_FACTOR;
+                  totalDistance * 0.55 * distanceCompensation * bounceCompensation
+                ) * AI_POWER_SCALING_FACTOR * difficultyScaling;
                 
                 bestIsBankShot = true;
                 bestBankPoint = wallPoint;
@@ -286,18 +344,56 @@ export const calculateAIMove = (
     }
     
     if (closestPlayer) {
-      console.log('No clear shots found. Using fallback simple hit.');
-      const angle = Math.atan2(
-        ball.pos.y - closestPlayer.pos.y,
-        ball.pos.x - closestPlayer.pos.x
-      );
+      console.log('No clear shots found. Using intelligent fallback hit.');
       
-      selectPlayer(closestPlayer.id);
-      return {
-        player: closestPlayer,
-        angle: angle,
-        power: MAX_PULL_DISTANCE * 0.7 * AI_POWER_SCALING_FACTOR
-      };
+      // Determine the best direction to hit the ball when no clear shot exists
+      // For harder difficulties, try to hit toward the opponent's goal
+      let targetAngle;
+      
+      if (aiDifficulty === AI_DIFFICULTY.HARD || aiDifficulty === AI_DIFFICULTY.MEDIUM) {
+        // Calculate angle to the center of opponent's goal (left side)
+        const goalCenter = { x: 0, y: goalY };
+        targetAngle = Math.atan2(
+          goalCenter.y - ball.pos.y,
+          goalCenter.x - ball.pos.x
+        );
+        
+        // Calculate the optimal angle to hit the ball to send it toward the goal
+        const impactOffset = Math.PI / 6; // 30 degrees offset for optimal hit
+        const hitDirection = normalizeAngle(targetAngle + impactOffset);
+        
+        // Calculate the position player should aim for to hit at this angle
+        const idealPlayerPos = {
+          x: ball.pos.x - Math.cos(hitDirection) * PLAYER_SIZE,
+          y: ball.pos.y - Math.sin(hitDirection) * PLAYER_SIZE
+        };
+        
+        // Calculate angle from player to this ideal position
+        const angle = Math.atan2(
+          idealPlayerPos.y - closestPlayer.pos.y,
+          idealPlayerPos.x - closestPlayer.pos.x
+        );
+        
+        selectPlayer(closestPlayer.id);
+        return {
+          player: closestPlayer,
+          angle: angle,
+          power: MAX_PULL_DISTANCE * (aiDifficulty === AI_DIFFICULTY.HARD ? 0.85 : 0.75) * AI_POWER_SCALING_FACTOR
+        };
+      } else {
+        // For easy difficulty, just hit directly at the ball
+        const angle = Math.atan2(
+          ball.pos.y - closestPlayer.pos.y,
+          ball.pos.x - closestPlayer.pos.x
+        );
+        
+        selectPlayer(closestPlayer.id);
+        return {
+          player: closestPlayer,
+          angle: angle,
+          power: MAX_PULL_DISTANCE * 0.65 * AI_POWER_SCALING_FACTOR
+        };
+      }
     }
   
   // If no viable shot found
