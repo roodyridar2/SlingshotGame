@@ -22,6 +22,26 @@ const gameRooms = {};
 // Matchmaking queue
 let matchmakingQueue = [];
 
+// Interval to clean up abandoned rooms (every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  const abandonedRooms = [];
+  
+  // Find rooms with no activity for more than 10 minutes
+  Object.keys(gameRooms).forEach(roomId => {
+    const room = gameRooms[roomId];
+    if (room.lastActivity && now - room.lastActivity > 10 * 60 * 1000) {
+      abandonedRooms.push(roomId);
+    }
+  });
+  
+  // Remove abandoned rooms
+  abandonedRooms.forEach(roomId => {
+    console.log(`Cleaning up abandoned room: ${roomId}`);
+    delete gameRooms[roomId];
+  });
+}, 5 * 60 * 1000);
+
 // Socket.IO connection handler
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
@@ -56,6 +76,8 @@ io.on('connection', (socket) => {
           { id: player2Id, team: 2, ready: false }
         ],
         gameState: null,
+        lastMove: null,
+        lastActivity: Date.now(),
         spectators: []
       };
       
@@ -167,20 +189,40 @@ io.on('connection', (socket) => {
   // Game move
   socket.on('gameMove', ({ roomId, move }) => {
     const room = gameRooms[roomId];
-    if (!room) return;
+    if (!room) {
+      console.log(`Error: Room ${roomId} not found for move`);
+      return;
+    }
     
-    // Broadcast the move to all players in the room
+    // Validate move data to ensure it has all required fields
+    if (!move.playerId || !move.playerPos || !move.direction || move.power === undefined) {
+      console.log(`Error: Invalid move data received from ${socket.id}:`, move);
+      return;
+    }
+    
+    // Store the last move in the room for potential reconnections
+    room.lastMove = move;
+    
+    // Broadcast the detailed move to all players in the room
+    // Move contains: playerId, playerPos, direction, power
     socket.to(roomId).emit('opponentMove', { move });
-    console.log(`Move in room ${roomId} by player ${socket.id}`);
+    console.log(`Move in room ${roomId} by player ${socket.id} - Player: ${move.playerId}`);
   });
 
-  // Game state update
+  // Game state update - only used for critical state synchronization
   socket.on('gameStateUpdate', ({ roomId, gameState }) => {
     const room = gameRooms[roomId];
-    if (!room) return;
+    if (!room) {
+      console.log(`Error: Room ${roomId} not found for state update`);
+      return;
+    }
     
+    // Store the current game state for potential reconnections
     room.gameState = gameState;
+    
+    // Send the state update to the other player
     socket.to(roomId).emit('gameStateUpdated', { gameState });
+    console.log(`Game state updated in room ${roomId} - Current team: ${gameState.currentTeam}`);
   });
 
   // Game over

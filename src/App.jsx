@@ -197,14 +197,22 @@ function SoccerStarsGame() {
       if (gameState.isMoving) return;
 
       const player = gameState.balls.find((b) => b.id === playerId);
-      if (!player || player.team !== gameState.currentTeam) return;
+      
+      // For online mode, check if the player belongs to the player's assigned team
+      if (gameMode === GAME_MODES.ONLINE) {
+        // Only allow selecting pieces from your assigned team (playerTeam)
+        if (!player || player.team !== playerTeam || player.team !== gameState.currentTeam) return;
+      } else {
+        // For local modes, just check if it's the current team's turn
+        if (!player || player.team !== gameState.currentTeam) return;
+      }
 
       setGameState((prev) => ({
         ...prev,
         selectedPlayerId: playerId,
       }));
     },
-    [gameState.isMoving, gameState.currentTeam, gameState.balls]
+    [gameState.isMoving, gameState.currentTeam, gameState.balls, gameMode, playerTeam]
   );
 
   // Goal checking is now handled directly in the updatePhysics function
@@ -226,7 +234,15 @@ function SoccerStarsGame() {
       if (gameState.isMoving) return;
 
       const player = gameState.balls.find((b) => b.id === playerId);
-      if (!player || player.team !== gameState.currentTeam) return;
+      
+      // For online mode, check if the player belongs to the player's assigned team
+      if (gameMode === GAME_MODES.ONLINE) {
+        // Only allow selecting pieces from your assigned team (playerTeam)
+        if (!player || player.team !== playerTeam || player.team !== gameState.currentTeam) return;
+      } else {
+        // For local modes, just check if it's the current team's turn
+        if (!player || player.team !== gameState.currentTeam) return;
+      }
 
       // Select this player if not already selected
       selectPlayer(playerId);
@@ -291,13 +307,26 @@ function SoccerStarsGame() {
         return ball;
       });
 
+      // For online mode, send the detailed move to the opponent
+      if (gameMode === GAME_MODES.ONLINE && isMyTurn) {
+        const move = {
+          playerId: selectedPlayer.id,
+          playerPos: { ...selectedPlayer.pos }, // Exact position of the player
+          direction: { x: directionX, y: directionY }, // Normalized direction vector
+          power: initialSpeed // Power scalar
+        };
+        
+        sendGameMove(roomId, move);
+        setIsMyTurn(false); // Switch turns
+      }
+
       return {
         ...prev,
         balls: newBalls,
         isMoving: true,
       };
     });
-  }, [isDragging, startDragPos, currentDragPos, getSelectedPlayer]);
+  }, [isDragging, startDragPos, currentDragPos, getSelectedPlayer, gameMode, isMyTurn, roomId]);
 
   // Helper function for AI to make a move - using the imported function
   const handleAIMove = useCallback(() => {
@@ -432,6 +461,11 @@ function SoccerStarsGame() {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    
+    // Don't run physics updates if we're in game mode selection
+    if (showGameModeSelection) return;
+    
+    console.log("Physics update effect triggered, isMoving:", gameState.isMoving);
 
     const updatePhysics = () => {
       setGameState((prev) => {
@@ -696,7 +730,7 @@ function SoccerStarsGame() {
         animationFrameRef.current = null;
       }
     };
-  }, [gameState.isMoving]);
+  }, [gameState.isMoving, showGameModeSelection, gameMode, playerTeam, roomId]);
 
   // Effect for global interaction listeners
   useEffect(() => {
@@ -718,6 +752,13 @@ function SoccerStarsGame() {
       window.removeEventListener("mouseleave", handleInteractionEnd);
     };
   }, [isDragging, handleInteractionMove, handleInteractionEnd]);
+  
+  // Debug effect to log when isMoving changes
+  useEffect(() => {
+    if (gameMode === GAME_MODES.ONLINE) {
+      console.log("isMoving changed to:", gameState.isMoving);
+    }
+  }, [gameState.isMoving, gameMode]);
 
   // Arrow display for shooting
   const getArrowStyle = () => {
@@ -799,6 +840,7 @@ function SoccerStarsGame() {
       // Connection events
       onConnect: (id) => {
         console.log('Connected with ID:', id);
+        // Store socket ID for reference
         setPlayerId(id);
       },
       
@@ -874,13 +916,40 @@ function SoccerStarsGame() {
       opponentMove: ({ move }) => {
         console.log('Opponent move received:', move);
         
-        // Apply opponent's move
+        // Apply opponent's move with the detailed information
         setGameState((prev) => {
-          const newBalls = [...prev.balls];
+          const newBalls = JSON.parse(JSON.stringify(prev.balls)); // Deep copy to avoid reference issues
           const playerIndex = newBalls.findIndex(ball => ball.id === move.playerId);
           
           if (playerIndex !== -1) {
-            newBalls[playerIndex].vel = { x: move.velX, y: move.velY };
+            // IMPORTANT: First update player position to match exactly what the opponent had
+            // This ensures perfect synchronization between clients
+            if (move.playerPos) {
+              newBalls[playerIndex].pos = { ...move.playerPos };
+            }
+            
+            // Calculate velocity from direction and power
+            // Using the exact same calculation as the sender
+            const velX = move.direction.x * move.power;
+            const velY = move.direction.y * move.power;
+            
+            // Apply velocity
+            newBalls[playerIndex].vel = { x: velX, y: velY };
+            
+            console.log(`Applied move to player ${move.playerId} at position:`, 
+              newBalls[playerIndex].pos, 
+              'with velocity:', { x: velX, y: velY });
+            
+            // Force animation frame to start if it's not already running
+            if (animationFrameRef.current === null) {
+              setTimeout(() => {
+                // This will trigger the physics update effect
+                setGameState(current => ({
+                  ...current,
+                  isMoving: true
+                }));
+              }, 0);
+            }
             
             return {
               ...prev,
@@ -898,9 +967,23 @@ function SoccerStarsGame() {
       
       gameStateUpdated: ({ gameState: newState }) => {
         console.log('Game state updated from server:', newState);
-        // Only update if not host or if game is in progress
-        if (!isHost || gameState.isMoving) {
-          setGameState(newState);
+        
+        // Always update with the server's state to ensure synchronization
+        // This is critical for maintaining consistent game state between players
+        setGameState(prevState => {
+          // If we're currently moving, keep our local state
+          if (prevState.isMoving && !newState.isMoving) {
+            console.log('Keeping local state while pieces are moving');
+            return prevState;
+          }
+          
+          console.log('Updating to server state');
+          return newState;
+        });
+        
+        // If it's our turn now, update the turn state
+        if (newState.currentTeam === playerTeam) {
+          setIsMyTurn(true);
         }
       },
       
@@ -1050,6 +1133,19 @@ function SoccerStarsGame() {
         </div>
       ) : (
         <>
+          {/* Team indicator for online multiplayer */}
+          {gameMode === GAME_MODES.ONLINE && (
+            <div className="mb-4 w-full max-w-[400px] text-center py-2 px-4 rounded-lg" 
+              style={{
+                backgroundColor: playerTeam === 1 ? "#ff6b6b" : "#4dabf7",
+                color: "white",
+                fontWeight: "bold",
+                fontSize: "18px",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+              }}>
+              You are playing as {playerTeam === 1 ? "RED" : "BLUE"} team
+            </div>
+          )}
           <div className="mb-4 w-full max-w-[400px] flex justify-between items-center text-white">
             <div className="text-red-500 font-bold text-xl">
               Red: {gameState.score.team1}
@@ -1169,12 +1265,16 @@ function SoccerStarsGame() {
                     backgroundRepeat: "no-repeat"
                   }}
                   onMouseDown={
-                    !gameState.isMoving && isCurrentTeamPlayer
+                    !gameState.isMoving && 
+                    ((gameMode === GAME_MODES.ONLINE && ball.team === playerTeam && ball.team === gameState.currentTeam) || 
+                     (gameMode !== GAME_MODES.ONLINE && isCurrentTeamPlayer))
                       ? (e) => handleInteractionStart(e, ball.id)
                       : undefined
                   }
                   onTouchStart={
-                    !gameState.isMoving && isCurrentTeamPlayer
+                    !gameState.isMoving && 
+                    ((gameMode === GAME_MODES.ONLINE && ball.team === playerTeam && ball.team === gameState.currentTeam) || 
+                     (gameMode !== GAME_MODES.ONLINE && isCurrentTeamPlayer))
                       ? (e) => handleInteractionStart(e, ball.id)
                       : undefined
                   }
