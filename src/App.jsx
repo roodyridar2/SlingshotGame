@@ -27,8 +27,9 @@ import {
 
 // Team and player setup
 const initialGameState = (gameMode = GAME_MODES.VS_PLAYER) => {
-  const fieldWidth = 600;
-  const fieldHeight = 400;
+  // Vertical field for mobile - swap width and height
+  const fieldWidth = 400;
+  const fieldHeight = 600;
   
   // Soccer ball
   const ball = {
@@ -41,11 +42,11 @@ const initialGameState = (gameMode = GAME_MODES.VS_PLAYER) => {
     team: null
   };
   
-  // Team 1 (Red)
+  // Team 1 (Red) - Now at the bottom of the field
   const team1Players = [
     {
       id: 'team1-player1',
-      pos: { x: fieldWidth * 0.2, y: fieldHeight * 0.25 },
+      pos: { x: fieldWidth * 0.25, y: fieldHeight * 0.8 },
       vel: { x: 0, y: 0 },
       size: PLAYER_SIZE,
       color: 'bg-red-500',
@@ -54,7 +55,7 @@ const initialGameState = (gameMode = GAME_MODES.VS_PLAYER) => {
     },
     {
       id: 'team1-player2',
-      pos: { x: fieldWidth * 0.2, y: fieldHeight * 0.5 },
+      pos: { x: fieldWidth * 0.5, y: fieldHeight * 0.8 },
       vel: { x: 0, y: 0 },
       size: PLAYER_SIZE,
       color: 'bg-red-500',
@@ -63,7 +64,7 @@ const initialGameState = (gameMode = GAME_MODES.VS_PLAYER) => {
     },
     {
       id: 'team1-player3',
-      pos: { x: fieldWidth * 0.2, y: fieldHeight * 0.75 },
+      pos: { x: fieldWidth * 0.75, y: fieldHeight * 0.8 },
       vel: { x: 0, y: 0 },
       size: PLAYER_SIZE,
       color: 'bg-red-500',
@@ -72,11 +73,11 @@ const initialGameState = (gameMode = GAME_MODES.VS_PLAYER) => {
     }
   ];
   
-  // Team 2 (Blue)
+  // Team 2 (Blue) - Now at the top of the field
   const team2Players = [
     {
       id: 'team2-player1',
-      pos: { x: fieldWidth * 0.8, y: fieldHeight * 0.25 },
+      pos: { x: fieldWidth * 0.25, y: fieldHeight * 0.2 },
       vel: { x: 0, y: 0 },
       size: PLAYER_SIZE,
       color: 'bg-blue-500',
@@ -85,7 +86,7 @@ const initialGameState = (gameMode = GAME_MODES.VS_PLAYER) => {
     },
     {
       id: 'team2-player2',
-      pos: { x: fieldWidth * 0.8, y: fieldHeight * 0.5 },
+      pos: { x: fieldWidth * 0.5, y: fieldHeight * 0.2 },
       vel: { x: 0, y: 0 },
       size: PLAYER_SIZE,
       color: 'bg-blue-500',
@@ -94,7 +95,7 @@ const initialGameState = (gameMode = GAME_MODES.VS_PLAYER) => {
     },
     {
       id: 'team2-player3',
-      pos: { x: fieldWidth * 0.8, y: fieldHeight * 0.75 },
+      pos: { x: fieldWidth * 0.75, y: fieldHeight * 0.2 },
       vel: { x: 0, y: 0 },
       size: PLAYER_SIZE,
       color: 'bg-blue-500',
@@ -421,44 +422,44 @@ function SoccerStarsGame() {
           ball.pos.x += ball.vel.x;
           ball.pos.y += ball.vel.y;
           
-          // Wall collision (with special goal areas)
-          const goalY = containerHeight / 2;
-          const halfGoalHeight = GOAL_HEIGHT / 2;
+          // Wall collision (with special goal areas) - Rotated 90 degrees
+          const goalX = containerWidth / 2;
+          const halfGoalWidth = GOAL_HEIGHT / 2; // Using GOAL_HEIGHT as the width now
           
-          // Left wall with goal opening
-          if (ball.pos.x - radius < 0) {
-            if (ball.pos.y < goalY - halfGoalHeight || 
-                ball.pos.y > goalY + halfGoalHeight) {
-              ball.pos.x = radius;
-              ball.vel.x = -ball.vel.x * WALL_BOUNCE_FACTOR;
-            } else if (ball.isPlayer) {
-              // Apply bounce for players hitting the goal area
-              ball.pos.x = radius;
-              ball.vel.x = -ball.vel.x * WALL_BOUNCE_FACTOR;
-            }
-          }
-          
-          // Right wall with goal opening
-          if (ball.pos.x + radius > containerWidth) {
-            if (ball.pos.y < goalY - halfGoalHeight || 
-                ball.pos.y > goalY + halfGoalHeight) {
-              ball.pos.x = containerWidth - radius;
-              ball.vel.x = -ball.vel.x * WALL_BOUNCE_FACTOR;
-            } else if (ball.isPlayer) {
-              // Apply bounce for players hitting the goal area
-              ball.pos.x = containerWidth - radius;
-              ball.vel.x = -ball.vel.x * WALL_BOUNCE_FACTOR;
-            }
-          }
-          
-          // Top and bottom walls (no goals)
+          // Top wall with goal opening
           if (ball.pos.y - radius < 0) {
-            ball.pos.y = radius;
-            ball.vel.y = -ball.vel.y * WALL_BOUNCE_FACTOR;
+            if (ball.pos.x < goalX - halfGoalWidth || 
+                ball.pos.x > goalX + halfGoalWidth) {
+              ball.pos.y = radius;
+              ball.vel.y = -ball.vel.y * WALL_BOUNCE_FACTOR;
+            } else if (ball.isPlayer) {
+              // Apply bounce for players hitting the goal area
+              ball.pos.y = radius;
+              ball.vel.y = -ball.vel.y * WALL_BOUNCE_FACTOR;
+            }
           }
+          
+          // Bottom wall with goal opening
           if (ball.pos.y + radius > containerHeight) {
-            ball.pos.y = containerHeight - radius;
-            ball.vel.y = -ball.vel.y * WALL_BOUNCE_FACTOR;
+            if (ball.pos.x < goalX - halfGoalWidth || 
+                ball.pos.x > goalX + halfGoalWidth) {
+              ball.pos.y = containerHeight - radius;
+              ball.vel.y = -ball.vel.y * WALL_BOUNCE_FACTOR;
+            } else if (ball.isPlayer) {
+              // Apply bounce for players hitting the goal area
+              ball.pos.y = containerHeight - radius;
+              ball.vel.y = -ball.vel.y * WALL_BOUNCE_FACTOR;
+            }
+          }
+          
+          // Left and right walls (no goals)
+          if (ball.pos.x - radius < 0) {
+            ball.pos.x = radius;
+            ball.vel.x = -ball.vel.x * WALL_BOUNCE_FACTOR;
+          }
+          if (ball.pos.x + radius > containerWidth) {
+            ball.pos.x = containerWidth - radius;
+            ball.vel.x = -ball.vel.x * WALL_BOUNCE_FACTOR;
           }
           
           // Ensure pieces don't go out of bounds (especially for blue pieces)
@@ -484,26 +485,26 @@ function SoccerStarsGame() {
         
         // Check for goals (continuously during gameplay)
         const ball = newBalls.find(b => b.id === 'ball');
-        const goalY = containerHeight / 2;
-        const halfGoalHeight = GOAL_HEIGHT / 2;
+        const goalX = containerWidth / 2;
+        const halfGoalWidth = GOAL_HEIGHT / 2;
         let newScore = {...prev.score};
         let goalScored = false;
         
-        // Check if ball is in left goal (team 2 scores)
+        // Check if ball is in top goal (team 2 scores) - Rotated 90 degrees
         if (ball.id === 'ball' && 
-            ball.pos.x < 10 && 
-            ball.pos.y > goalY - halfGoalHeight && 
-            ball.pos.y < goalY + halfGoalHeight) {
+            ball.pos.y < 10 && 
+            ball.pos.x > goalX - halfGoalWidth && 
+            ball.pos.x < goalX + halfGoalWidth) {
           newScore.team2 += 1;
           goalScored = true;
           console.log('Goal scored by Team 2 (Blue)!');
         }
         
-        // Check if ball is in right goal (team 1 scores)
+        // Check if ball is in bottom goal (team 1 scores) - Rotated 90 degrees
         if (ball.id === 'ball' && 
-            ball.pos.x > containerWidth - 10 && 
-            ball.pos.y > goalY - halfGoalHeight && 
-            ball.pos.y < goalY + halfGoalHeight) {
+            ball.pos.y > containerHeight - 10 && 
+            ball.pos.x > goalX - halfGoalWidth && 
+            ball.pos.x < goalX + halfGoalWidth) {
           newScore.team1 += 1;
           goalScored = true;
           console.log('Goal scored by Team 1 (Red)!');
@@ -653,7 +654,7 @@ function SoccerStarsGame() {
   // Get selected player for rendering (used in the component)
   
   return (
-    <div className="flex flex-col justify-center items-center h-screen bg-gray-800 p-4">
+    <div className="flex flex-col justify-center items-center min-h-screen bg-gray-800 p-4">
       {showGameModeSelection ? (
         <GameMenu
           aiDifficulty={aiDifficulty}
@@ -661,9 +662,9 @@ function SoccerStarsGame() {
         />
       ) : (
         <>
-          <div className="mb-4 w-full max-w-[600px] flex justify-between items-center text-white">
+          <div className="mb-4 w-full max-w-[400px] flex justify-between items-center text-white">
             <div className="text-red-500 font-bold text-xl">Red: {gameState.score.team1}</div>
-            <div className="bg-gray-600 px-4 py-2 rounded-lg">
+            <div className="bg-gray-600 px-3 py-1 rounded-lg text-sm">
               {gameState.isMoving ? (
                 <span>Balls in motion...</span>
               ) : (
@@ -679,20 +680,20 @@ function SoccerStarsGame() {
           
           <div 
             ref={containerRef} 
-            className="relative w-full max-w-[600px] h-[400px] bg-green-800 border-4 border-gray-400 rounded-lg overflow-hidden cursor-default"
+            className="relative w-full max-w-[400px] h-[600px] bg-green-800 border-4 border-gray-400 rounded-lg overflow-hidden cursor-default"
             style={{ touchAction: 'none' }}
           >
-        {/* Field markings */}
+        {/* Field markings - Rotated 90 degrees */}
         <div className="absolute top-0 left-0 w-full h-full">
           {/* Center circle */}
           <div className="absolute top-1/2 left-1/2 w-24 h-24 border-2 border-white rounded-full opacity-50" style={{ transform: 'translate(-50%, -50%)' }}></div>
-          {/* Center line */}
-          <div className="absolute top-0 left-1/2 h-full w-0.5 bg-white opacity-50" style={{ transform: 'translateX(-50%)' }}></div>
+          {/* Center line - now horizontal */}
+          <div className="absolute left-0 top-1/2 w-full h-0.5 bg-white opacity-50" style={{ transform: 'translateY(-50%)' }}></div>
           
-          {/* Left goal */}
-          <div className="absolute top-1/2 left-0 w-2 h-24 bg-gray-200" style={{ transform: 'translateY(-50%)' }}></div>
-          {/* Right goal */}
-          <div className="absolute top-1/2 right-0 w-2 h-24 bg-gray-200" style={{ transform: 'translateY(-50%)' }}></div>
+          {/* Top goal */}
+          <div className="absolute top-0 left-1/2 h-2 w-24 bg-gray-200" style={{ transform: 'translateX(-50%)' }}></div>
+          {/* Bottom goal */}
+          <div className="absolute bottom-0 left-1/2 h-2 w-24 bg-gray-200" style={{ transform: 'translateX(-50%)' }}></div>
         </div>
         
         {/* Players and ball */}
@@ -753,13 +754,13 @@ function SoccerStarsGame() {
       </div>
       
       <div className="mt-4 text-white text-center">
-        <p>
+        <p className="text-sm px-2">
           {gameMode === GAME_MODES.VS_PLAYER
             ? "Click on any of your team players to select, then drag to shoot. Take turns to score in the opponent's goal."
             : "You play as Red. Click on any of your players to select, then drag to shoot. The AI plays as Blue."}
         </p>
         {gameMode === GAME_MODES.VS_AI && (
-          <p className="mt-2 text-sm text-gray-400">AI Difficulty: Hard</p>
+          <p className="mt-2 text-xs text-gray-400">AI Difficulty: Hard</p>
         )}
       </div>
     </>

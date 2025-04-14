@@ -28,11 +28,10 @@ export const calculateAIMove = (
   
   console.log('AI calculating move with difficulty:', aiDifficulty);
   
-  const fieldWidth = containerRef.current?.offsetWidth || 600;
-  const fieldHeight = containerRef.current?.offsetHeight || 400;
+  const fieldWidth = containerRef.current?.offsetWidth || 400; // Updated for vertical layout
+  const fieldHeight = containerRef.current?.offsetHeight || 600; // Updated for vertical layout
   const ball = gameState.balls.find(b => b.id === 'ball');
   const aiPlayers = gameState.balls.filter(b => b.isPlayer && b.team === 2);
-  const goalY = fieldHeight / 2;
   
   // Using advanced 8-ball pool like calculations
   // Get all opponent players as obstacles
@@ -40,23 +39,23 @@ export const calculateAIMove = (
   const obstacles = opponentPlayers.map(p => ({ pos: p.pos, radius: PLAYER_SIZE / 2 }));
     
     // Determine which goal to target based on AI team
-    // AI is team 2 (Blue), so it should target the left goal (opponent's goal)
-    // The game logic shows Team 2 scores when ball enters left goal, Team 1 scores when ball enters right goal
-    const goalHeight = GOAL_HEIGHT || fieldHeight / 4; // Use the defined GOAL_HEIGHT constant
+    // AI is team 2 (Blue), so it should target the top goal (opponent's goal)
+    // The game is now vertically oriented - Team 2 scores when ball enters top goal
+    const goalWidth = GOAL_HEIGHT || fieldWidth / 4; // Use the defined GOAL_HEIGHT constant as width
     const targetPoints = [];
     const numTargetPoints = aiDifficulty === AI_DIFFICULTY.HARD ? 9 : 5; // More target points for hard difficulty
     
-    // Target the LEFT goal (opponent's goal) - AI is team 2 (Blue)
+    // Target the TOP goal (opponent's goal) - AI is team 2 (Blue)
     for (let i = 0; i < numTargetPoints; i++) {
-      const y = goalY - goalHeight/2 + (i * goalHeight/(numTargetPoints-1));
-      targetPoints.push({ x: 0, y }); // Left side of the field (x = 0)
+      const x = fieldWidth/2 - goalWidth/2 + (i * goalWidth/(numTargetPoints-1));
+      targetPoints.push({ x, y: 0 }); // Top side of the field (y = 0)
     }
     
     // Add some strategic points slightly inside the field for more accurate shots
     if (aiDifficulty === AI_DIFFICULTY.HARD) {
       for (let i = 1; i < 4; i += 2) {
-        const y = goalY - goalHeight/3 + (i * goalHeight/3);
-        targetPoints.push({ x: 10, y }); // Slightly inside the field from left side
+        const x = fieldWidth/2 - goalWidth/3 + (i * goalWidth/3);
+        targetPoints.push({ x, y: 10 }); // Slightly inside the field from top side
       }
     }
     
@@ -351,8 +350,8 @@ export const calculateAIMove = (
       let targetAngle;
       
       if (aiDifficulty === AI_DIFFICULTY.HARD || aiDifficulty === AI_DIFFICULTY.MEDIUM) {
-        // Calculate angle to the center of opponent's goal (left side)
-        const goalCenter = { x: 0, y: goalY };
+        // Calculate angle to the center of opponent's goal (top side)
+        const goalCenter = { x: fieldWidth/2, y: 0 };
         targetAngle = Math.atan2(
           goalCenter.y - ball.pos.y,
           goalCenter.x - ball.pos.x
