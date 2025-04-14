@@ -431,6 +431,10 @@ function SoccerStarsGame() {
                 ball.pos.y > goalY + halfGoalHeight) {
               ball.pos.x = radius;
               ball.vel.x = -ball.vel.x * WALL_BOUNCE_FACTOR;
+            } else if (ball.isPlayer) {
+              // Apply bounce for players hitting the goal area
+              ball.pos.x = radius;
+              ball.vel.x = -ball.vel.x * WALL_BOUNCE_FACTOR;
             }
           }
           
@@ -438,6 +442,10 @@ function SoccerStarsGame() {
           if (ball.pos.x + radius > containerWidth) {
             if (ball.pos.y < goalY - halfGoalHeight || 
                 ball.pos.y > goalY + halfGoalHeight) {
+              ball.pos.x = containerWidth - radius;
+              ball.vel.x = -ball.vel.x * WALL_BOUNCE_FACTOR;
+            } else if (ball.isPlayer) {
+              // Apply bounce for players hitting the goal area
               ball.pos.x = containerWidth - radius;
               ball.vel.x = -ball.vel.x * WALL_BOUNCE_FACTOR;
             }
