@@ -263,6 +263,7 @@ io.on('connection', (socket) => {
       const playerIndex = room.players.findIndex(p => p.id === socket.id);
       
       if (playerIndex !== -1) {
+        // Handle player leaving the room (including game forfeit logic)
         leaveRoom(socket, roomId);
       } else {
         // Check if was a spectator
@@ -283,11 +284,28 @@ function leaveRoom(socket, roomId) {
   
   const playerIndex = room.players.findIndex(p => p.id === socket.id);
   if (playerIndex !== -1) {
-    const team = room.players[playerIndex].team;
-    room.players.splice(playerIndex, 1);
+    const leavingPlayer = room.players[playerIndex];
+    const leavingTeam = leavingPlayer.team;
     
+    // Check if there's an opponent still in the room
+    const opponent = room.players.find(p => p.id !== socket.id);
+    
+    // If game is in progress and there's an opponent, declare opponent as winner
+    if (room.gameState && opponent) {
+      const winnerTeam = opponent.team;
+      console.log(`Player ${socket.id} (Team ${leavingTeam}) left the game. Team ${winnerTeam} wins by forfeit.`);
+      
+      // Notify the remaining player about the win
+      io.to(opponent.id).emit('opponentDisconnected', { 
+        winner: winnerTeam,
+        message: 'Your opponent disconnected. You win!'
+      });
+    }
+    
+    // Remove the player from the room
+    room.players.splice(playerIndex, 1);
     socket.leave(roomId);
-    io.to(roomId).emit('playerLeft', { playerId: socket.id, team });
+    io.to(roomId).emit('playerLeft', { playerId: socket.id, team: leavingTeam });
     console.log(`Player ${socket.id} left room ${roomId}`);
     
     // If no players left, remove the room

@@ -169,6 +169,9 @@ function SoccerStarsGame() {
   const [opponentReady, setOpponentReady] = useState(false);
   const [isOnlineGameStarted, setIsOnlineGameStarted] = useState(false);
   const [isMyTurn, setIsMyTurn] = useState(true); // For online mode
+  const [disconnectMessage, setDisconnectMessage] = useState(null); // For forfeit messages
+  const [showNotification, setShowNotification] = useState(false); // For notifications
+  const [notificationMessage, setNotificationMessage] = useState(''); // Notification message
 
   // Refs
   const containerRef = useRef(null);
@@ -810,6 +813,9 @@ function SoccerStarsGame() {
     setGameState(initialGameState(gameMode));
     setGameOver(false); // Reset game over state
     setWinner(null); // Reset winner
+    setDisconnectMessage(null); // Reset disconnect message
+    setShowNotification(false); // Reset notification
+    setNotificationMessage(''); // Clear notification message
   };
 
   // Start a new game with selected mode
@@ -995,6 +1001,17 @@ function SoccerStarsGame() {
         setOpponentReady(false);
       },
       
+      opponentDisconnected: ({ winner, message }) => {
+        console.log('Opponent disconnected:', message);
+        // Show notification first instead of immediately ending the game
+        setNotificationMessage(message);
+        setShowNotification(true);
+        
+        // Store the winner information for when the user acknowledges the notification
+        setWinner(winner);
+        setDisconnectMessage(message);
+      },
+      
       playerLeft: (data) => {
         console.log('Player left:', data);
         // Handle opponent disconnection
@@ -1107,7 +1124,9 @@ function SoccerStarsGame() {
         <div className="flex flex-col items-center justify-center bg-gray-700 rounded-lg p-8 shadow-lg text-white max-w-[400px] w-full">
           <h2 className="text-3xl font-bold mb-6">Game Over!</h2>
           <div className="text-2xl mb-8">
-            {winner === 1 ? (
+            {disconnectMessage ? (
+              <span className="font-bold">{disconnectMessage}</span>
+            ) : winner === 1 ? (
               <span className="text-red-500 font-bold">Red Team Wins!</span>
             ) : (
               <span className="text-blue-500 font-bold">Blue Team Wins!</span>
@@ -1188,6 +1207,25 @@ function SoccerStarsGame() {
               animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
             }
           `}} />
+          
+          {/* Notification overlay */}
+          {showNotification && (
+            <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
+              <div className="bg-gray-800 p-6 rounded-lg shadow-lg max-w-md text-center">
+                <h3 className="text-xl font-bold text-white mb-4">Opponent Left</h3>
+                <p className="text-white mb-6">{notificationMessage}</p>
+                <button 
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors"
+                  onClick={() => {
+                    setShowNotification(false);
+                    setGameOver(true); // Now show the game over screen
+                  }}
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          )}
           
           <div
             ref={containerRef}
