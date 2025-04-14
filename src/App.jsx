@@ -6,6 +6,12 @@ import GameMenu from "./components/GameMenu";
 // Import AI logic
 import { calculateAIMove, executeAIMove } from "./ai/GameAI";
 
+// Import game images
+import fieldImage from "./assets/images/field.png";
+import playerImage from "./assets/images/player.png";
+import opponentImage from "./assets/images/opponent.png";
+import ballImage from "./assets/images/ball.png";
+
 // Import constants
 import {
   PLAYER_SIZE,
@@ -385,6 +391,7 @@ function SoccerStarsGame() {
     showGameModeSelection,
     handleAIMove,
     aiDifficulty,
+    isAiProcessing,
   ]);
 
   // Physics update effect
@@ -770,8 +777,13 @@ function SoccerStarsGame() {
           
           <div
             ref={containerRef}
-            className={`relative w-full max-w-[400px] h-[600px] bg-green-800 border-4 border-gray-400 rounded-lg overflow-hidden cursor-default ${cameraShake ? 'camera-shake' : ''}`}
-            style={{ touchAction: "none" }}
+            className={`relative w-full max-w-[400px] h-[600px] border-4 border-gray-400 rounded-lg overflow-hidden cursor-default ${cameraShake ? 'camera-shake' : ''}`}
+            style={{ 
+              touchAction: "none",
+              backgroundImage: `url(${fieldImage})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center"
+            }}
           >
             {/* Field markings - Rotated 90 degrees */}
             <div className="absolute top-0 left-0 w-full h-full">
@@ -808,15 +820,13 @@ function SoccerStarsGame() {
                 <div
                   key={ball.id}
                   ref={isSelected ? activePlayerRef : null}
-                  className={`absolute ${
-                    ball.color
-                  } rounded-full select-none flex items-center justify-center 
+                  className={`absolute select-none flex items-center justify-center 
                         ${
                           !gameState.isMoving && isCurrentTeamPlayer
                             ? "hover:ring-2 hover:ring-yellow-300"
                             : ""
                         }
-                        ${isSelected ? "ring-2 ring-yellow-300" : ""}`}
+                        ${isSelected ? "ring-2 ring-yellow-300 rounded-full" : ""}`}
                   style={{
                     width: `${ball.size}px`,
                     height: `${ball.size}px`,
@@ -831,6 +841,14 @@ function SoccerStarsGame() {
                         : "default",
                     opacity:
                       !gameState.isMoving && isCurrentTeamPlayer ? 1 : 0.8,
+                    backgroundImage: ball.id === "ball" 
+                      ? `url(${ballImage})` 
+                      : ball.team === 1 
+                        ? `url(${playerImage})` 
+                        : `url(${opponentImage})`,
+                    backgroundSize: "contain",
+                    backgroundPosition: "center",
+                    backgroundRepeat: "no-repeat"
                   }}
                   onMouseDown={
                     !gameState.isMoving && isCurrentTeamPlayer
@@ -847,9 +865,7 @@ function SoccerStarsGame() {
                       ? () => selectPlayer(ball.id)
                       : undefined
                   }
-                >
-                  {ball.id === "ball" ? "⚽" : ""}
-                </div>
+                ></div>
               );
             })}
 
