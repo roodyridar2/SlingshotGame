@@ -135,6 +135,8 @@ function SoccerStarsGame() {
   const [currentDragPos, setCurrentDragPos] = useState({ x: 0, y: 0 });
   const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [cameraShake, setCameraShake] = useState(false);
+  const [gameOver, setGameOver] = useState(false);
+  const [winner, setWinner] = useState(null);
 
   // Refs
   const containerRef = useRef(null);
@@ -578,6 +580,13 @@ function SoccerStarsGame() {
           // Trigger camera shake animation
           setCameraShake(true);
           
+          // Check if either team has reached 3 goals
+          if (newScore.team1 >= 3 || newScore.team2 >= 3) {
+            // Game over - set winner
+            setGameOver(true);
+            setWinner(newScore.team1 >= 3 ? 1 : 2);
+          }
+          
           // Reset the game with updated score if goal scored
           const initialState = initialGameState(prev.gameMode);
           return {
@@ -702,6 +711,8 @@ function SoccerStarsGame() {
   // Restart game
   const handleRestart = () => {
     setGameState(initialGameState(gameMode));
+    setGameOver(false); // Reset game over state
+    setWinner(null); // Reset winner
   };
 
   // Start a new game with selected mode
@@ -710,6 +721,8 @@ function SoccerStarsGame() {
     setGameState(initialGameState(mode));
     setShowGameModeSelection(false);
     setIsAiProcessing(false); // Reset AI processing state when starting a new game
+    setGameOver(false); // Reset game over state
+    setWinner(null); // Reset winner
   };
 
   // Return to game mode selection
@@ -730,6 +743,35 @@ function SoccerStarsGame() {
     <div className="flex flex-col justify-center items-center min-h-screen bg-gray-800 p-4">
       {showGameModeSelection ? (
         <GameMenu aiDifficulty={aiDifficulty} startGame={startGame} />
+      ) : gameOver ? (
+        // Game Over Screen
+        <div className="flex flex-col items-center justify-center bg-gray-700 rounded-lg p-8 shadow-lg text-white max-w-[400px] w-full">
+          <h2 className="text-3xl font-bold mb-6">Game Over!</h2>
+          <div className="text-2xl mb-8">
+            {winner === 1 ? (
+              <span className="text-red-500 font-bold">Red Team Wins!</span>
+            ) : (
+              <span className="text-blue-500 font-bold">Blue Team Wins!</span>
+            )}
+          </div>
+          <div className="mb-4 text-xl">
+            Final Score: <span className="text-red-500 font-bold">{gameState.score.team1}</span> - <span className="text-blue-500 font-bold">{gameState.score.team2}</span>
+          </div>
+          <div className="flex space-x-4 mt-4">
+            <button
+              className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition-colors"
+              onClick={handleRestart}
+            >
+              Play Again
+            </button>
+            <button
+              className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg transition-colors"
+              onClick={returnToModeSelection}
+            >
+              Main Menu
+            </button>
+          </div>
+        </div>
       ) : (
         <>
           <div className="mb-4 w-full max-w-[400px] flex justify-between items-center text-white">
