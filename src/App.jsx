@@ -663,12 +663,20 @@ function SoccerStarsGame() {
           
           // Reset the game with updated score if goal scored
           const initialState = initialGameState(prev.gameMode);
-          return {
+          const updatedState = {
             ...initialState,
             score: newScore,
             gameMode: prev.gameMode,
             aiDifficulty: prev.aiDifficulty,
           };
+          
+          // For online mode, explicitly send the updated game state to opponent after a goal
+          if (gameMode === GAME_MODES.ONLINE) {
+            console.log('Goal scored in online mode - syncing game state');
+            updateGameState(roomId, updatedState);
+          }
+          
+          return updatedState;
         }
 
         // If pieces have stopped moving, change the turn
@@ -981,9 +989,19 @@ function SoccerStarsGame() {
       gameStateUpdated: ({ gameState: newState }) => {
         console.log('Game state updated from server:', newState);
         
-        // Always update with the server's state to ensure synchronization
-        // This is critical for maintaining consistent game state between players
+        // Check if this is an update after a goal (score differs from current state)
         setGameState(prevState => {
+          const scoreChanged = 
+            prevState.score.team1 !== newState.score.team1 || 
+            prevState.score.team2 !== newState.score.team2;
+          
+          // If score changed (goal was scored), always accept the server's state
+          if (scoreChanged) {
+            console.log('Score changed, accepting server state (goal was scored)');
+            setCameraShake(true); // Trigger camera shake for the receiver as well
+            return newState;
+          }
+          
           // If we're currently moving, keep our local state
           if (prevState.isMoving && !newState.isMoving) {
             console.log('Keeping local state while pieces are moving');
