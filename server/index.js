@@ -230,7 +230,10 @@ io.on('connection', (socket) => {
       return;
     }
     
-    // Check if the current team has changed since the last update
+    // Update room activity time
+    room.lastActivity = Date.now();
+    
+    // Store previous team to check for turn change
     const prevTeam = room.gameState ? room.gameState.currentTeam : null;
     const currentTeam = gameState.currentTeam;
     
@@ -253,15 +256,26 @@ io.on('connection', (socket) => {
     const room = gameRooms[roomId];
     if (!room) return;
     
+    // Notify all players in the room about the game end and winner
     io.to(roomId).emit('gameEnded', { winner });
     console.log(`Game ended in room ${roomId}, winner: Team ${winner}`);
     
-    // Reset player ready status for rematch
+    // Clear turn timer if it exists
+    if (room.turnTimer) {
+      clearTimeout(room.turnTimer);
+      room.turnTimer = null;
+    }
+    
+    // Reset player ready status for potential rematch
     room.players.forEach(player => {
       player.ready = false;
     });
     
-    io.to(roomId).emit('readyForRematch');
+    // Reset game state but keep the room and players
+    room.gameState = null;
+    
+    // Inform players they can play again with the 'Main Menu' button
+    io.to(roomId).emit('readyForMainMenu');
   });
 
   // Leave room
@@ -269,34 +283,45 @@ io.on('connection', (socket) => {
     leaveRoom(socket, roomId);
   });
 
-  // Disconnect handler
+  // Handle player disconnection
   socket.on('disconnect', () => {
-    console.log(`User disconnected: ${socket.id}`);
+    console.log(`Player ${socket.id} disconnected`);
     
-    // Remove from matchmaking queue if present
-    const queueIndex = matchmakingQueue.indexOf(socket.id);
-    if (queueIndex !== -1) {
-      matchmakingQueue.splice(queueIndex, 1);
-      console.log(`Removed disconnected player ${socket.id} from matchmaking queue`);
-    }
-    
-    // Find and leave all rooms the socket was in
-    Object.keys(gameRooms).forEach(roomId => {
+    // Find any game rooms where this player was active
+    for (const roomId in gameRooms) {
       const room = gameRooms[roomId];
       const playerIndex = room.players.findIndex(p => p.id === socket.id);
       
       if (playerIndex !== -1) {
-        // Handle player leaving the room (including game forfeit logic)
-        leaveRoom(socket, roomId);
-      } else {
-        // Check if was a spectator
-        const spectatorIndex = room.spectators.indexOf(socket.id);
-        if (spectatorIndex !== -1) {
-          room.spectators.splice(spectatorIndex, 1);
-          io.to(roomId).emit('spectatorLeft', { spectatorId: socket.id });
+        // Only notify other players about disconnection if a game is in progress
+        if (room.gameState) {
+          // There's an active game in progress, notify opponents about forfeit
+          socket.to(roomId).emit('playerDisconnected');
+          
+          const leavingPlayer = room.players[playerIndex];
+          console.log(`Player ${socket.id} (Team ${leavingPlayer.team}) disconnected during an active game in room ${roomId}`);
+        } else {
+          // No active game, quietly remove the player
+          console.log(`Player ${socket.id} disconnected from room ${roomId} (no active game)`);
+        }
+        
+        // Remove player from room
+        room.players.splice(playerIndex, 1);
+        
+        // If no players left, remove the room
+        if (room.players.length === 0) {
+          delete gameRooms[roomId];
+          console.log(`Room ${roomId} removed due to all players disconnecting`);
         }
       }
-    });
+    }
+    
+    // Remove from matchmaking queue if present
+    const queueIndex = matchmakingQueue.findIndex(id => id === socket.id);
+    if (queueIndex !== -1) {
+      matchmakingQueue.splice(queueIndex, 1);
+      console.log(`Removed disconnected player ${socket.id} from matchmaking queue`);
+    }
   });
 });
 
@@ -357,6 +382,9 @@ function handleTurnTimeout(roomId, currentTeam) {
   room.players.forEach(player => {
     player.ready = false;
   });
+  
+  // Use resetTurnTimer for any rematch to properly reset the timer
+  resetTurnTimer(roomId, currentTeam === 1 ? 2 : 1);
   
   io.to(roomId).emit('readyForRematch');
 }

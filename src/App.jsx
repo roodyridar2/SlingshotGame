@@ -835,6 +835,10 @@ function SoccerStarsGame() {
   const startGame = (mode) => {
     setGameMode(mode);
     
+    // Reset game over state regardless of mode
+    setGameOver(false);
+    setWinner(null);
+    
     if (mode === GAME_MODES.ONLINE) {
       // For online mode, directly join matchmaking instead of showing the multiplayer menu
       setShowGameModeSelection(false);
@@ -851,6 +855,12 @@ function SoccerStarsGame() {
       setTurnTimeLeft(null);
       clearInterval(turnTimerRef.current);
       turnTimerRef.current = null;
+      
+      // Reset other online-specific states
+      setIsOnlineGameStarted(false);
+      setPlayerReady(false);
+      setOpponentReady(false);
+      setIsMyTurn(false);
     } else {
       // For local modes (VS_PLAYER, VS_AI)
       setGameState(initialGameState(mode));
@@ -882,15 +892,41 @@ function SoccerStarsGame() {
       
       matchFound: (data) => {
         console.log('Match found:', data);
+        
+        // This flag is important to prevent disconnect notifications
+        // when moving from one game to another
+        setIsOnlineGameStarted(true);
+        
+        // Reset UI states
+        setShowMatchmakingQueue(false);
+        setShowGameModeSelection(false);
+        
+        // Reset room and player state
         setRoomId(data.roomId);
         setPlayerTeam(data.team);
         setIsHost(data.team === 1); // Team 1 is considered the host
-        setShowMatchmakingQueue(false);
-        // Skip waiting room and start the game immediately
-        setIsOnlineGameStarted(true);
+        
+        // Reset player ready state
+        setPlayerReady(false);
+        setOpponentReady(false);
+        
+        // Reset game state
         setGameState(initialGameState(GAME_MODES.ONLINE));
         setGameMode(GAME_MODES.ONLINE);
-        setShowGameModeSelection(false);
+        
+        // Explicitly reset game over state
+        setGameOver(false);
+        setWinner(null);
+        
+        // Reset turn state
+        setIsMyTurn(data.team === 1); // Team 1 goes first
+        
+        // Reset any active timers
+        if (turnTimerRef.current) {
+          clearInterval(turnTimerRef.current);
+          turnTimerRef.current = null;
+          setTurnTimeLeft(null);
+        }
       },
       
       matchmakingContinued: () => {
@@ -927,21 +963,35 @@ function SoccerStarsGame() {
         }
       },
       
-      // Game events
       gameStart: () => {
         console.log('Game starting!');
+        
+        // Reset UI states
         setShowWaitingRoom(false);
         setIsOnlineGameStarted(true);
-        setIsMyTurn(playerTeam === 1); // Team 1 goes first
         
-        // Initialize game state for online mode
+        // Reset game state
         const initialState = initialGameState(GAME_MODES.ONLINE);
         setGameState(initialState);
+        
+        // Explicitly reset game over state
+        setGameOver(false);
+        setWinner(null);
+        
+        // Reset turn state
+        setIsMyTurn(playerTeam === 1); // Team 1 goes first
         
         // If host, send initial game state
         if (isHost) {
           updateGameState(roomId, initialState);
         }
+        
+        // Reset any timers
+        if (turnTimerRef.current) {
+          clearInterval(turnTimerRef.current);
+          turnTimerRef.current = null;
+        }
+        setTurnTimeLeft(null);
       },
       
       opponentMove: ({ move }) => {
@@ -1032,19 +1082,49 @@ function SoccerStarsGame() {
         console.log('Game ended, winner:', winner);
         setGameOver(true);
         setWinner(winner);
+        
+        // Reset game states
         setPlayerReady(false);
         setOpponentReady(false);
+        
+        // Clear turn timer if active
+        if (turnTimerRef.current) {
+          clearInterval(turnTimerRef.current);
+          turnTimerRef.current = null;
+          setTurnTimeLeft(null);
+        }
+      },
+      
+      // Handle server informing that players can return to main menu
+      readyForMainMenu: () => {
+        console.log('Server indicates ready to return to main menu');
+        // Do not disconnect from the room - connection is maintained
+      },
+      
+      // Handle server room cleanup (legacy - kept for compatibility)
+      roomCleanup: () => {
+        console.log('Room is being cleaned up by the server');
+        // Reset room-related state
+        setRoomId(null);
       },
       
       opponentDisconnected: ({ winner, message }) => {
         console.log('Opponent disconnected:', message);
-        // Show notification first instead of immediately ending the game
-        setNotificationMessage(message);
-        setShowNotification(true);
         
-        // Store the winner information for when the user acknowledges the notification
-        setWinner(winner);
-        setDisconnectMessage(message);
+        // Only show the disconnect notification if we're in an active online game
+        if (isOnlineGameStarted && !gameOver && gameState.currentTeam) {
+          console.log('Active game interrupted - showing disconnect notification');
+          
+          // Show notification first instead of immediately ending the game
+          setNotificationMessage(message);
+          setShowNotification(true);
+          
+          // Store the winner information for when the user acknowledges the notification
+          setWinner(winner);
+          setDisconnectMessage(message);
+        } else {
+          console.log('No active game in progress - ignoring disconnect notification');
+        }
       },
       
       playerLeft: (data) => {
@@ -1095,7 +1175,7 @@ function SoccerStarsGame() {
       },
       
       turnTimeout: ({ losingTeam, winnerTeam, message }) => {
-        console.log(`Turn timeout: ${message}`);
+        console.log(`Turn timeout: Team ${losingTeam} lost due to time running out. Winner: Team ${winnerTeam}`);
         
         // Clear the timer
         if (turnTimerRef.current) {
@@ -1116,15 +1196,42 @@ function SoccerStarsGame() {
 
   // Return to game mode selection
   const returnToModeSelection = () => {
+    // Reset all UI states
     setShowGameModeSelection(true);
     setShowMultiplayerMenu(false);
     setShowWaitingRoom(false);
     setShowMatchmakingQueue(false);
     setIsOnlineGameStarted(false);
+    setGameOver(false);
+    setWinner(null);
+    
+    // Reset game state
+    setGameState(initialGameState(GAME_MODES.VS_PLAYER));
+    
+    // Reset player state
+    setPlayerReady(false);
+    setOpponentReady(false);
+    setIsMyTurn(false);
+    setIsHost(false);
+    
+    // Reset room info
+    setRoomId(null);
+    
+    // Clear any timers
+    if (turnTimerRef.current) {
+      clearInterval(turnTimerRef.current);
+      turnTimerRef.current = null;
+      setTurnTimeLeft(null);
+    }
     
     // Leave matchmaking queue if active
     if (showMatchmakingQueue) {
       leaveMatchmaking();
+    }
+    
+    // Leave room if in one
+    if (roomId) {
+      leaveRoom(roomId);
     }
     
     // Disconnect from Socket.IO if in online mode
@@ -1178,7 +1285,33 @@ function SoccerStarsGame() {
     setShowMultiplayerMenu(true);
   };
 
-  // This has been moved up before the return statement
+  // Special function for returning to main menu from game over in online mode
+  // This preserves the socket connection and room
+  const mainMenuFromGameOver = () => {
+    // Reset UI states
+    setShowGameModeSelection(true);
+    setShowMultiplayerMenu(false);
+    setShowWaitingRoom(false);
+    setShowMatchmakingQueue(false);
+    setIsOnlineGameStarted(false);
+    setGameOver(false);
+    setWinner(null);
+    
+    // Reset game state
+    setGameState(initialGameState(GAME_MODES.VS_PLAYER));
+    
+    // Reset player-related states but preserve connection
+    setPlayerReady(false);
+    setOpponentReady(false);
+    setIsMyTurn(false);
+    
+    // Clear any timers
+    if (turnTimerRef.current) {
+      clearInterval(turnTimerRef.current);
+      turnTimerRef.current = null;
+      setTurnTimeLeft(null);
+    }
+  };
 
   // Get selected player for rendering (used in the component)
 
@@ -1218,16 +1351,10 @@ function SoccerStarsGame() {
           <div className="mb-4 text-xl">
             Final Score: <span className="text-red-500 font-bold">{gameState.score.team1}</span> - <span className="text-blue-500 font-bold">{gameState.score.team2}</span>
           </div>
-          <div className="flex space-x-4 mt-4">
-            <button
-              className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition-colors"
-              onClick={handleRestart}
-            >
-              Play Again
-            </button>
+          <div className="mt-4">
             <button
               className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg transition-colors"
-              onClick={returnToModeSelection}
+              onClick={gameMode === GAME_MODES.ONLINE ? mainMenuFromGameOver : returnToModeSelection}
             >
               Main Menu
             </button>
