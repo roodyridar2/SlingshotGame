@@ -865,7 +865,11 @@ function SoccerStarsGame() {
         setPlayerTeam(data.team);
         setIsHost(data.team === 1); // Team 1 is considered the host
         setShowMatchmakingQueue(false);
-        setShowWaitingRoom(true);
+        // Skip waiting room and start the game immediately
+        setIsOnlineGameStarted(true);
+        setGameState(initialGameState(GAME_MODES.ONLINE));
+        setGameMode(GAME_MODES.ONLINE);
+        setShowGameModeSelection(false);
       },
       
       matchmakingContinued: () => {

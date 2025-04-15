@@ -93,7 +93,11 @@ io.on('connection', (socket) => {
         player1Socket.emit('matchFound', { roomId, playerId: player1Id, team: 1 });
         player2Socket.emit('matchFound', { roomId, playerId: player2Id, team: 2 });
         
+        // Auto-start the game immediately when players are matched
+        io.to(roomId).emit('gameStart');
+        
         console.log(`Matched players ${player1Id} and ${player2Id} in room ${roomId}`);
+        console.log(`Game started in room ${roomId}`);
       } else {
         // If one of the sockets is no longer connected, put the other back in queue
         if (player1Socket) {
