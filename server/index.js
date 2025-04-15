@@ -78,7 +78,10 @@ io.on('connection', (socket) => {
         gameState: null,
         lastMove: null,
         lastActivity: Date.now(),
-        spectators: []
+        spectators: [],
+        turnTimer: null,
+        turnStartTime: null,
+        turnTimeLimit: 30 // 30 seconds per turn
       };
       
       // Join both players to the room
@@ -95,6 +98,9 @@ io.on('connection', (socket) => {
         
         // Auto-start the game immediately when players are matched
         io.to(roomId).emit('gameStart');
+        
+        // Start turn timer for Team 1 (first turn)
+        startTurnTimer(roomId, 1);
         
         console.log(`Matched players ${player1Id} and ${player2Id} in room ${roomId}`);
         console.log(`Game started in room ${roomId}`);
@@ -199,15 +205,18 @@ io.on('connection', (socket) => {
     }
     
     // Validate move data to ensure it has all required fields
-    if (!move.playerId || !move.playerPos || !move.direction || move.power === undefined) {
-      console.log(`Error: Invalid move data received from ${socket.id}:`, move);
+    if (!move || !move.playerId) {
+      console.log(`Error: Invalid move data in room ${roomId}`);
       return;
     }
     
-    // Store the last move in the room for potential reconnections
+    // Update last activity timestamp
+    room.lastActivity = Date.now();
     room.lastMove = move;
     
-    // Broadcast the detailed move to all players in the room
+    // No need to reset timer here as it will be reset in the gameStateUpdate event
+    // when the turn actually changes after the pieces stop moving
+    
     // Move contains: playerId, playerPos, direction, power
     socket.to(roomId).emit('opponentMove', { move });
     console.log(`Move in room ${roomId} by player ${socket.id} - Player: ${move.playerId}`);
@@ -221,8 +230,18 @@ io.on('connection', (socket) => {
       return;
     }
     
+    // Check if the current team has changed since the last update
+    const prevTeam = room.gameState ? room.gameState.currentTeam : null;
+    const currentTeam = gameState.currentTeam;
+    
     // Store the current game state for potential reconnections
     room.gameState = gameState;
+    
+    // Reset turn timer if the team has changed
+    if (prevTeam !== null && prevTeam !== currentTeam) {
+      console.log(`Turn changed from Team ${prevTeam} to Team ${currentTeam} - Resetting timer`);
+      startTurnTimer(roomId, currentTeam);
+    }
     
     // Send the state update to the other player
     socket.to(roomId).emit('gameStateUpdated', { gameState });
@@ -280,6 +299,67 @@ io.on('connection', (socket) => {
     });
   });
 });
+
+// Turn timer functions
+function startTurnTimer(roomId, currentTeam) {
+  const room = gameRooms[roomId];
+  if (!room) return;
+
+  // Clear any existing timer
+  if (room.turnTimer) {
+    clearTimeout(room.turnTimer);
+    room.turnTimer = null;
+  }
+
+  // Set the turn start time
+  room.turnStartTime = Date.now();
+  
+  // Notify players about the turn start and timer
+  io.to(roomId).emit('turnTimerStarted', { team: currentTeam, timeLimit: room.turnTimeLimit });
+  
+  // Set a new timer
+  room.turnTimer = setTimeout(() => {
+    // Time's up! Current team loses
+    handleTurnTimeout(roomId, currentTeam);
+  }, room.turnTimeLimit * 1000);
+  
+  console.log(`Turn timer started for Team ${currentTeam} in room ${roomId}`);
+}
+
+function resetTurnTimer(roomId, nextTeam) {
+  // Simply start a new timer for the next team
+  startTurnTimer(roomId, nextTeam);
+}
+
+function handleTurnTimeout(roomId, currentTeam) {
+  const room = gameRooms[roomId];
+  if (!room) return;
+  
+  // The current team ran out of time and loses
+  const winnerTeam = currentTeam === 1 ? 2 : 1;
+  console.log(`Team ${currentTeam} ran out of time in room ${roomId}. Team ${winnerTeam} wins!`);
+  
+  // Notify all players in the room about the timeout and game result
+  io.to(roomId).emit('turnTimeout', { 
+    losingTeam: currentTeam,
+    winnerTeam: winnerTeam,
+    message: `Team ${currentTeam} ran out of time! Team ${winnerTeam} wins!`
+  });
+  
+  // Game over - winner is the other team
+  io.to(roomId).emit('gameEnded', { winner: winnerTeam });
+  
+  // Clear the timer
+  room.turnTimer = null;
+  room.turnStartTime = null;
+  
+  // Reset player ready status for potential rematch
+  room.players.forEach(player => {
+    player.ready = false;
+  });
+  
+  io.to(roomId).emit('readyForRematch');
+}
 
 // Helper function to handle a player leaving a room
 function leaveRoom(socket, roomId) {

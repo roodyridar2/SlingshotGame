@@ -148,6 +148,11 @@ function SoccerStarsGame() {
   const [gameState, setGameState] = useState(() =>
     initialGameState(GAME_MODES.VS_PLAYER)
   );
+  
+  // Turn timer state
+  const [turnTimeLeft, setTurnTimeLeft] = useState(null);
+  const [turnTimeLimit, setTurnTimeLimit] = useState(30); // 30 seconds per turn by default
+  const turnTimerRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [startDragPos, setStartDragPos] = useState({ x: 0, y: 0 });
   const [currentDragPos, setCurrentDragPos] = useState({ x: 0, y: 0 });
@@ -841,6 +846,11 @@ function SoccerStarsGame() {
       
       // Directly join matchmaking
       joinMatchmaking();
+      
+      // Reset timer state when starting a new online game
+      setTurnTimeLeft(null);
+      clearInterval(turnTimerRef.current);
+      turnTimerRef.current = null;
     } else {
       // For local modes (VS_PLAYER, VS_AI)
       setGameState(initialGameState(mode));
@@ -1052,6 +1062,54 @@ function SoccerStarsGame() {
       error: (error) => {
         console.error('Socket error:', error);
         alert(`Error: ${error.message}`);
+      },
+      
+      // Turn timer events
+      turnTimerStarted: ({ team, timeLimit }) => {
+        console.log(`Turn timer started for Team ${team} with ${timeLimit} seconds`);
+        
+        // Store the time limit
+        setTurnTimeLimit(timeLimit);
+        
+        // Clear any existing timer
+        if (turnTimerRef.current) {
+          clearInterval(turnTimerRef.current);
+          turnTimerRef.current = null;
+        }
+        
+        // Set initial time left
+        setTurnTimeLeft(timeLimit);
+        
+        // Start countdown timer
+        turnTimerRef.current = setInterval(() => {
+          setTurnTimeLeft(prevTime => {
+            if (prevTime <= 1) {
+              // Timer is about to finish, clear the interval
+              clearInterval(turnTimerRef.current);
+              turnTimerRef.current = null;
+              return 0;
+            }
+            return prevTime - 1;
+          });
+        }, 1000);
+      },
+      
+      turnTimeout: ({ losingTeam, winnerTeam, message }) => {
+        console.log(`Turn timeout: ${message}`);
+        
+        // Clear the timer
+        if (turnTimerRef.current) {
+          clearInterval(turnTimerRef.current);
+          turnTimerRef.current = null;
+        }
+        
+        // Display notification about timeout
+        setNotificationMessage(message);
+        setShowNotification(true);
+        
+        // Game is over, set winner
+        setGameOver(true);
+        setWinner(winnerTeam);
       }
     });
   };
@@ -1213,6 +1271,19 @@ function SoccerStarsGame() {
               Blue: {gameState.score.team2}
             </div>
           </div>
+
+          {/* Turn Timer */}
+          {gameMode === GAME_MODES.ONLINE && turnTimeLeft !== null && !gameState.isMoving && (
+            <div className="mb-4 w-full max-w-[400px] flex justify-center">
+              <div 
+                className={`text-center py-1 px-6 rounded-full font-bold ${turnTimeLeft <= 10 ? 'bg-red-600' : 'bg-green-600'}`}
+                style={{ minWidth: '80px' }}
+              >
+                <span className="text-white">{turnTimeLeft}</span>
+                <span className="text-white text-xs ml-1">sec</span>
+              </div>
+            </div>
+          )}
 
           <style dangerouslySetInnerHTML={{ __html: `
             @keyframes shake {
