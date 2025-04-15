@@ -823,13 +823,16 @@ function SoccerStarsGame() {
     setGameMode(mode);
     
     if (mode === GAME_MODES.ONLINE) {
-      // For online mode, show the multiplayer menu first
+      // For online mode, directly join matchmaking instead of showing the multiplayer menu
       setShowGameModeSelection(false);
-      setShowMultiplayerMenu(true);
+      setShowMatchmakingQueue(true); // Show matchmaking queue immediately
       
       // Initialize Socket.IO connection
       initializeSocket();
       setupSocketCallbacks();
+      
+      // Directly join matchmaking
+      joinMatchmaking();
     } else {
       // For local modes (VS_PLAYER, VS_AI)
       setGameState(initialGameState(mode));
