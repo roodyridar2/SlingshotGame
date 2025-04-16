@@ -21,7 +21,7 @@ import {
   sendGameMove,
   updateGameState,
   sendGameOver,
-  getSocketId
+  getSocketId,
 } from "./services/socketService";
 
 // Import game images
@@ -148,7 +148,7 @@ function SoccerStarsGame() {
   const [gameState, setGameState] = useState(() =>
     initialGameState(GAME_MODES.VS_PLAYER)
   );
-  
+
   // Turn timer state
   const [turnTimeLeft, setTurnTimeLeft] = useState(null);
   const [turnTimeLimit, setTurnTimeLimit] = useState(30); // 30 seconds per turn by default
@@ -160,7 +160,7 @@ function SoccerStarsGame() {
   const [cameraShake, setCameraShake] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [winner, setWinner] = useState(null);
-  
+
   // Online multiplayer states
   const [showMultiplayerMenu, setShowMultiplayerMenu] = useState(false);
   const [showWaitingRoom, setShowWaitingRoom] = useState(false);
@@ -176,14 +176,14 @@ function SoccerStarsGame() {
   const [isMyTurn, setIsMyTurn] = useState(true); // For online mode
   const [disconnectMessage, setDisconnectMessage] = useState(null); // For forfeit messages
   const [showNotification, setShowNotification] = useState(false); // For notifications
-  const [notificationMessage, setNotificationMessage] = useState(''); // Notification message
+  const [notificationMessage, setNotificationMessage] = useState(""); // Notification message
 
   // Refs
   const containerRef = useRef(null);
   const activePlayerRef = useRef(null);
   const animationFrameRef = useRef(null);
   const aiTimeoutRef = useRef(null);
-  
+
   // Reset camera shake after a delay
   useEffect(() => {
     if (cameraShake) {
@@ -205,11 +205,16 @@ function SoccerStarsGame() {
       if (gameState.isMoving) return;
 
       const player = gameState.balls.find((b) => b.id === playerId);
-      
+
       // For online mode, check if the player belongs to the player's assigned team
       if (gameMode === GAME_MODES.ONLINE) {
         // Only allow selecting pieces from your assigned team (playerTeam)
-        if (!player || player.team !== playerTeam || player.team !== gameState.currentTeam) return;
+        if (
+          !player ||
+          player.team !== playerTeam ||
+          player.team !== gameState.currentTeam
+        )
+          return;
       } else {
         // For local modes, just check if it's the current team's turn
         if (!player || player.team !== gameState.currentTeam) return;
@@ -220,7 +225,13 @@ function SoccerStarsGame() {
         selectedPlayerId: playerId,
       }));
     },
-    [gameState.isMoving, gameState.currentTeam, gameState.balls, gameMode, playerTeam]
+    [
+      gameState.isMoving,
+      gameState.currentTeam,
+      gameState.balls,
+      gameMode,
+      playerTeam,
+    ]
   );
 
   // Goal checking is now handled directly in the updatePhysics function
@@ -242,11 +253,16 @@ function SoccerStarsGame() {
       if (gameState.isMoving) return;
 
       const player = gameState.balls.find((b) => b.id === playerId);
-      
+
       // For online mode, check if the player belongs to the player's assigned team
       if (gameMode === GAME_MODES.ONLINE) {
         // Only allow selecting pieces from your assigned team (playerTeam)
-        if (!player || player.team !== playerTeam || player.team !== gameState.currentTeam) return;
+        if (
+          !player ||
+          player.team !== playerTeam ||
+          player.team !== gameState.currentTeam
+        )
+          return;
       } else {
         // For local modes, just check if it's the current team's turn
         if (!player || player.team !== gameState.currentTeam) return;
@@ -321,9 +337,9 @@ function SoccerStarsGame() {
           playerId: selectedPlayer.id,
           playerPos: { ...selectedPlayer.pos }, // Exact position of the player
           direction: { x: directionX, y: directionY }, // Normalized direction vector
-          power: initialSpeed // Power scalar
+          power: initialSpeed, // Power scalar
         };
-        
+
         sendGameMove(roomId, move);
         setIsMyTurn(false); // Switch turns
       }
@@ -334,7 +350,15 @@ function SoccerStarsGame() {
         isMoving: true,
       };
     });
-  }, [isDragging, startDragPos, currentDragPos, getSelectedPlayer, gameMode, isMyTurn, roomId]);
+  }, [
+    isDragging,
+    startDragPos,
+    currentDragPos,
+    getSelectedPlayer,
+    gameMode,
+    isMyTurn,
+    roomId,
+  ]);
 
   // Helper function for AI to make a move - using the imported function
   const handleAIMove = useCallback(() => {
@@ -469,11 +493,14 @@ function SoccerStarsGame() {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    
+
     // Don't run physics updates if we're in game mode selection
     if (showGameModeSelection) return;
-    
-    console.log("Physics update effect triggered, isMoving:", gameState.isMoving);
+
+    console.log(
+      "Physics update effect triggered, isMoving:",
+      gameState.isMoving
+    );
 
     const updatePhysics = () => {
       setGameState((prev) => {
@@ -653,19 +680,19 @@ function SoccerStarsGame() {
         if (goalScored) {
           // Trigger camera shake animation
           setCameraShake(true);
-          
+
           // Check if either team has reached 3 goals
           if (newScore.team1 >= 3 || newScore.team2 >= 3) {
             // Game over - set winner
             setGameOver(true);
             setWinner(newScore.team1 >= 3 ? 1 : 2);
-            
+
             // For online mode, notify opponent about game over
             if (gameMode === GAME_MODES.ONLINE) {
               sendGameOver(roomId, newScore.team1 >= 3 ? 1 : 2);
             }
           }
-          
+
           // Reset the game with updated score if goal scored
           const initialState = initialGameState(prev.gameMode);
           const updatedState = {
@@ -674,13 +701,13 @@ function SoccerStarsGame() {
             gameMode: prev.gameMode,
             aiDifficulty: prev.aiDifficulty,
           };
-          
+
           // For online mode, explicitly send the updated game state to opponent after a goal
           if (gameMode === GAME_MODES.ONLINE) {
-            console.log('Goal scored in online mode - syncing game state');
+            console.log("Goal scored in online mode - syncing game state");
             updateGameState(roomId, updatedState);
           }
-          
+
           return updatedState;
         }
 
@@ -692,13 +719,13 @@ function SoccerStarsGame() {
           if (prev.currentTeam === 2) {
             setIsAiProcessing(false);
           }
-          
+
           // For online mode, update turn state and send game state to opponent
           if (gameMode === GAME_MODES.ONLINE) {
             // It's my turn if the current team is my team
             const nextTeam = prev.currentTeam === 1 ? 2 : 1;
             setIsMyTurn(nextTeam === playerTeam);
-            
+
             // Send updated game state to opponent
             const updatedState = {
               ...prev,
@@ -707,7 +734,7 @@ function SoccerStarsGame() {
               currentTeam: nextTeam,
               selectedPlayerId: null,
             };
-            
+
             updateGameState(roomId, updatedState);
             return updatedState;
           }
@@ -768,7 +795,7 @@ function SoccerStarsGame() {
       window.removeEventListener("mouseleave", handleInteractionEnd);
     };
   }, [isDragging, handleInteractionMove, handleInteractionEnd]);
-  
+
   // Debug effect to log when isMoving changes
   useEffect(() => {
     if (gameMode === GAME_MODES.ONLINE) {
@@ -828,34 +855,34 @@ function SoccerStarsGame() {
     setWinner(null); // Reset winner
     setDisconnectMessage(null); // Reset disconnect message
     setShowNotification(false); // Reset notification
-    setNotificationMessage(''); // Clear notification message
+    setNotificationMessage(""); // Clear notification message
   };
 
   // Start a new game with selected mode
   const startGame = (mode) => {
     setGameMode(mode);
-    
+
     // Reset game over state regardless of mode
     setGameOver(false);
     setWinner(null);
-    
+
     if (mode === GAME_MODES.ONLINE) {
       // For online mode, directly join matchmaking instead of showing the multiplayer menu
       setShowGameModeSelection(false);
       setShowMatchmakingQueue(true); // Show matchmaking queue immediately
-      
+
       // Initialize Socket.IO connection
       initializeSocket();
       setupSocketCallbacks();
-      
+
       // Directly join matchmaking
       joinMatchmaking();
-      
+
       // Reset timer state when starting a new online game
       setTurnTimeLeft(null);
       clearInterval(turnTimerRef.current);
       turnTimerRef.current = null;
-      
+
       // Reset other online-specific states
       setIsOnlineGameStarted(false);
       setPlayerReady(false);
@@ -870,57 +897,57 @@ function SoccerStarsGame() {
       setWinner(null); // Reset winner
     }
   };
-  
+
   // Setup Socket.IO event callbacks
   const setupSocketCallbacks = () => {
     registerCallbacks({
       // Connection events
       onConnect: (id) => {
-        console.log('Connected with ID:', id);
+        console.log("Connected with ID:", id);
         // Store socket ID for reference
         setPlayerId(id);
       },
-      
+
       // Matchmaking events
       joinedMatchmaking: () => {
-        console.log('Joined matchmaking queue');
+        console.log("Joined matchmaking queue");
       },
-      
+
       leftMatchmaking: () => {
-        console.log('Left matchmaking queue');
+        console.log("Left matchmaking queue");
       },
-      
+
       matchFound: (data) => {
-        console.log('Match found:', data);
-        
+        console.log("Match found:", data);
+
         // This flag is important to prevent disconnect notifications
         // when moving from one game to another
         setIsOnlineGameStarted(true);
-        
+
         // Reset UI states
         setShowMatchmakingQueue(false);
         setShowGameModeSelection(false);
-        
+
         // Reset room and player state
         setRoomId(data.roomId);
         setPlayerTeam(data.team);
         setIsHost(data.team === 1); // Team 1 is considered the host
-        
+
         // Reset player ready state
         setPlayerReady(false);
         setOpponentReady(false);
-        
+
         // Reset game state
         setGameState(initialGameState(GAME_MODES.ONLINE));
         setGameMode(GAME_MODES.ONLINE);
-        
+
         // Explicitly reset game over state
         setGameOver(false);
         setWinner(null);
-        
+
         // Reset turn state
         setIsMyTurn(data.team === 1); // Team 1 goes first
-        
+
         // Reset any active timers
         if (turnTimerRef.current) {
           clearInterval(turnTimerRef.current);
@@ -928,64 +955,64 @@ function SoccerStarsGame() {
           setTurnTimeLeft(null);
         }
       },
-      
+
       matchmakingContinued: () => {
-        console.log('Matchmaking continued due to opponent disconnect');
+        console.log("Matchmaking continued due to opponent disconnect");
       },
-      
+
       // Room events
       roomCreated: (data) => {
-        console.log('Room created:', data);
+        console.log("Room created:", data);
         setRoomId(data.roomId);
         setPlayerTeam(data.team);
         setIsHost(true);
         setShowMultiplayerMenu(false);
         setShowWaitingRoom(true);
       },
-      
+
       roomJoined: (data) => {
-        console.log('Room joined:', data);
+        console.log("Room joined:", data);
         setRoomId(data.roomId);
         setPlayerTeam(data.team);
         setIsHost(false);
         setShowMultiplayerMenu(false);
         setShowWaitingRoom(true);
       },
-      
+
       playerJoined: (data) => {
-        console.log('Player joined:', data);
+        console.log("Player joined:", data);
       },
-      
+
       playerStatusUpdate: (data) => {
-        console.log('Player status update:', data);
+        console.log("Player status update:", data);
         if (data.playerId !== getSocketId()) {
           setOpponentReady(data.ready);
         }
       },
-      
+
       gameStart: () => {
-        console.log('Game starting!');
-        
+        console.log("Game starting!");
+
         // Reset UI states
         setShowWaitingRoom(false);
         setIsOnlineGameStarted(true);
-        
+
         // Reset game state
         const initialState = initialGameState(GAME_MODES.ONLINE);
         setGameState(initialState);
-        
+
         // Explicitly reset game over state
         setGameOver(false);
         setWinner(null);
-        
+
         // Reset turn state
         setIsMyTurn(playerTeam === 1); // Team 1 goes first
-        
+
         // If host, send initial game state
         if (isHost) {
           updateGameState(roomId, initialState);
         }
-        
+
         // Reset any timers
         if (turnTimerRef.current) {
           clearInterval(turnTimerRef.current);
@@ -993,100 +1020,107 @@ function SoccerStarsGame() {
         }
         setTurnTimeLeft(null);
       },
-      
+
       opponentMove: ({ move }) => {
-        console.log('Opponent move received:', move);
-        
+        console.log("Opponent move received:", move);
+
         // Apply opponent's move with the detailed information
         setGameState((prev) => {
           const newBalls = JSON.parse(JSON.stringify(prev.balls)); // Deep copy to avoid reference issues
-          const playerIndex = newBalls.findIndex(ball => ball.id === move.playerId);
-          
+          const playerIndex = newBalls.findIndex(
+            (ball) => ball.id === move.playerId
+          );
+
           if (playerIndex !== -1) {
             // IMPORTANT: First update player position to match exactly what the opponent had
             // This ensures perfect synchronization between clients
             if (move.playerPos) {
               newBalls[playerIndex].pos = { ...move.playerPos };
             }
-            
+
             // Calculate velocity from direction and power
             // Using the exact same calculation as the sender
             const velX = move.direction.x * move.power;
             const velY = move.direction.y * move.power;
-            
+
             // Apply velocity
             newBalls[playerIndex].vel = { x: velX, y: velY };
-            
-            console.log(`Applied move to player ${move.playerId} at position:`, 
-              newBalls[playerIndex].pos, 
-              'with velocity:', { x: velX, y: velY });
-            
+
+            console.log(
+              `Applied move to player ${move.playerId} at position:`,
+              newBalls[playerIndex].pos,
+              "with velocity:",
+              { x: velX, y: velY }
+            );
+
             // Force animation frame to start if it's not already running
             if (animationFrameRef.current === null) {
               setTimeout(() => {
                 // This will trigger the physics update effect
-                setGameState(current => ({
+                setGameState((current) => ({
                   ...current,
-                  isMoving: true
+                  isMoving: true,
                 }));
               }, 0);
             }
-            
+
             return {
               ...prev,
               balls: newBalls,
               isMoving: true,
             };
           }
-          
+
           return prev;
         });
-        
+
         // It's now my turn (will be switched back when pieces stop moving)
         setIsMyTurn(false);
       },
-      
+
       gameStateUpdated: ({ gameState: newState }) => {
-        console.log('Game state updated from server:', newState);
-        
+        console.log("Game state updated from server:", newState);
+
         // Check if this is an update after a goal (score differs from current state)
-        setGameState(prevState => {
-          const scoreChanged = 
-            prevState.score.team1 !== newState.score.team1 || 
+        setGameState((prevState) => {
+          const scoreChanged =
+            prevState.score.team1 !== newState.score.team1 ||
             prevState.score.team2 !== newState.score.team2;
-          
+
           // If score changed (goal was scored), always accept the server's state
           if (scoreChanged) {
-            console.log('Score changed, accepting server state (goal was scored)');
+            console.log(
+              "Score changed, accepting server state (goal was scored)"
+            );
             setCameraShake(true); // Trigger camera shake for the receiver as well
             return newState;
           }
-          
+
           // If we're currently moving, keep our local state
           if (prevState.isMoving && !newState.isMoving) {
-            console.log('Keeping local state while pieces are moving');
+            console.log("Keeping local state while pieces are moving");
             return prevState;
           }
-          
-          console.log('Updating to server state');
+
+          console.log("Updating to server state");
           return newState;
         });
-        
+
         // If it's our turn now, update the turn state
         if (newState.currentTeam === playerTeam) {
           setIsMyTurn(true);
         }
       },
-      
+
       gameEnded: ({ winner }) => {
-        console.log('Game ended, winner:', winner);
+        console.log("Game ended, winner:", winner);
         setGameOver(true);
         setWinner(winner);
-        
+
         // Reset game states
         setPlayerReady(false);
         setOpponentReady(false);
-        
+
         // Clear turn timer if active
         if (turnTimerRef.current) {
           clearInterval(turnTimerRef.current);
@@ -1094,75 +1128,81 @@ function SoccerStarsGame() {
           setTurnTimeLeft(null);
         }
       },
-      
+
       // Handle server informing that players can return to main menu
       readyForMainMenu: () => {
-        console.log('Server indicates ready to return to main menu');
+        console.log("Server indicates ready to return to main menu");
         // Do not disconnect from the room - connection is maintained
       },
-      
+
       // Handle server room cleanup (legacy - kept for compatibility)
       roomCleanup: () => {
-        console.log('Room is being cleaned up by the server');
+        console.log("Room is being cleaned up by the server");
         // Reset room-related state
         setRoomId(null);
       },
-      
+
       opponentDisconnected: ({ winner, message }) => {
-        console.log('Opponent disconnected:', message);
-        
+        console.log("Opponent disconnected:", message);
+
         // Only show the disconnect notification if we're in an active online game
         if (isOnlineGameStarted && !gameOver && gameState.currentTeam) {
-          console.log('Active game interrupted - showing disconnect notification');
-          
+          console.log(
+            "Active game interrupted - showing disconnect notification"
+          );
+
           // Show notification first instead of immediately ending the game
           setNotificationMessage(message);
           setShowNotification(true);
-          
+
           // Store the winner information for when the user acknowledges the notification
           setWinner(winner);
           setDisconnectMessage(message);
         } else {
-          console.log('No active game in progress - ignoring disconnect notification');
+          console.log(
+            "No active game in progress - ignoring disconnect notification"
+          );
         }
       },
-      
+
       playerLeft: (data) => {
-        console.log('Player left:', data);
+        console.log("Player left:", data);
         // Handle opponent disconnection
         if (isOnlineGameStarted) {
-          alert('Your opponent has left the game.');
+          alert("Your opponent has left the game.");
           returnToMultiplayerMenu();
         } else if (showWaitingRoom) {
-          alert('Your opponent has left the waiting room.');
+          alert("Your opponent has left the waiting room.");
           returnToMultiplayerMenu();
         }
       },
-      
+
       error: (error) => {
-        console.error('Socket error:', error);
+        console.error("Socket error:", error);
         alert(`Error: ${error.message}`);
       },
-      
+
       // Turn timer events
       turnTimerStarted: ({ team, timeLimit }) => {
-        console.log(`Turn timer started for Team ${team} with ${timeLimit} seconds`);
-        
+        console.log(
+          `Turn timer started for Team ${team} with ${timeLimit} seconds`
+        );
+
         // Store the time limit
         setTurnTimeLimit(timeLimit);
-        
+
         // Clear any existing timer
         if (turnTimerRef.current) {
           clearInterval(turnTimerRef.current);
           turnTimerRef.current = null;
         }
-        
+
         // Set initial time left
         setTurnTimeLeft(timeLimit);
-        
+
         // Start countdown timer
         turnTimerRef.current = setInterval(() => {
-          setTurnTimeLeft(prevTime => {
+          setTurnTimeLeft((prevTime) => {
             if (prevTime <= 1) {
               // Timer is about to finish, clear the interval
               clearInterval(turnTimerRef.current);
@@ -1173,24 +1213,26 @@ function SoccerStarsGame() {
           });
         }, 1000);
       },
-      
+
       turnTimeout: ({ losingTeam, winnerTeam, message }) => {
-        console.log(`Turn timeout: Team ${losingTeam} lost due to time running out. Winner: Team ${winnerTeam}`);
-        
+        console.log(
+          `Turn timeout: Team ${losingTeam} lost due to time running out. Winner: Team ${winnerTeam}`
+        );
+
         // Clear the timer
         if (turnTimerRef.current) {
           clearInterval(turnTimerRef.current);
           turnTimerRef.current = null;
         }
-        
+
         // Display notification about timeout
         setNotificationMessage(message);
         setShowNotification(true);
-        
+
         // Game is over, set winner
         setGameOver(true);
         setWinner(winnerTeam);
-      }
+      },
     });
   };
 
@@ -1204,48 +1246,48 @@ function SoccerStarsGame() {
     setIsOnlineGameStarted(false);
     setGameOver(false);
     setWinner(null);
-    
+
     // Reset game state
     setGameState(initialGameState(GAME_MODES.VS_PLAYER));
-    
+
     // Reset player state
     setPlayerReady(false);
     setOpponentReady(false);
     setIsMyTurn(false);
     setIsHost(false);
-    
+
     // Reset room info
     setRoomId(null);
-    
+
     // Clear any timers
     if (turnTimerRef.current) {
       clearInterval(turnTimerRef.current);
       turnTimerRef.current = null;
       setTurnTimeLeft(null);
     }
-    
+
     // Leave matchmaking queue if active
     if (showMatchmakingQueue) {
       leaveMatchmaking();
     }
-    
+
     // Leave room if in one
     if (roomId) {
       leaveRoom(roomId);
     }
-    
+
     // Disconnect from Socket.IO if in online mode
     if (gameMode === GAME_MODES.ONLINE) {
       disconnectSocket();
     }
-    
+
     // Clear any pending AI moves
     if (aiTimeoutRef.current) {
       clearTimeout(aiTimeoutRef.current);
       aiTimeoutRef.current = null;
     }
   };
-  
+
   // Online multiplayer functions
   const handleJoinMatchmaking = () => {
     // Show matchmaking queue and join it
@@ -1253,14 +1295,14 @@ function SoccerStarsGame() {
     setShowMatchmakingQueue(true);
     joinMatchmaking();
   };
-  
+
   const handlePlayerReady = () => {
     // Update local state
     setPlayerReady(true);
     // Send ready status to server
     socketSetPlayerReady(roomId);
   };
-  
+
   const cancelMatchmaking = () => {
     // Leave matchmaking queue
     leaveMatchmaking();
@@ -1268,13 +1310,13 @@ function SoccerStarsGame() {
     setShowMatchmakingQueue(false);
     setShowMultiplayerMenu(true);
   };
-  
+
   const returnToMultiplayerMenu = () => {
     // Leave current room
     if (roomId) {
       leaveRoom(roomId);
     }
-    
+
     // Reset online game states
     setRoomId(null);
     setIsHost(false);
@@ -1296,15 +1338,15 @@ function SoccerStarsGame() {
     setIsOnlineGameStarted(false);
     setGameOver(false);
     setWinner(null);
-    
+
     // Reset game state
     setGameState(initialGameState(GAME_MODES.VS_PLAYER));
-    
+
     // Reset player-related states but preserve connection
     setPlayerReady(false);
     setOpponentReady(false);
     setIsMyTurn(false);
-    
+
     // Clear any timers
     if (turnTimerRef.current) {
       clearInterval(turnTimerRef.current);
@@ -1322,12 +1364,12 @@ function SoccerStarsGame() {
       ) : showMatchmakingQueue ? (
         <MatchmakingQueue onCancel={cancelMatchmaking} />
       ) : showMultiplayerMenu ? (
-        <MultiplayerMenu 
+        <MultiplayerMenu
           onJoinMatchmaking={handleJoinMatchmaking}
           onReturnToMainMenu={returnToModeSelection}
         />
       ) : showWaitingRoom ? (
-        <WaitingRoom 
+        <WaitingRoom
           roomId={roomId}
           isHost={isHost}
           onReady={handlePlayerReady}
@@ -1349,12 +1391,23 @@ function SoccerStarsGame() {
             )}
           </div>
           <div className="mb-4 text-xl">
-            Final Score: <span className="text-red-500 font-bold">{gameState.score.team1}</span> - <span className="text-blue-500 font-bold">{gameState.score.team2}</span>
+            Final Score:{" "}
+            <span className="text-red-500 font-bold">
+              {gameState.score.team1}
+            </span>{" "}
+            -{" "}
+            <span className="text-blue-500 font-bold">
+              {gameState.score.team2}
+            </span>
           </div>
           <div className="mt-4">
             <button
               className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg transition-colors"
-              onClick={gameMode === GAME_MODES.ONLINE ? mainMenuFromGameOver : returnToModeSelection}
+              onClick={
+                gameMode === GAME_MODES.ONLINE
+                  ? mainMenuFromGameOver
+                  : returnToModeSelection
+              }
             >
               Main Menu
             </button>
@@ -1364,14 +1417,16 @@ function SoccerStarsGame() {
         <>
           {/* Team indicator for online multiplayer */}
           {gameMode === GAME_MODES.ONLINE && (
-            <div className="mb-4 w-full max-w-[400px] text-center py-2 px-4 rounded-lg" 
+            <div
+              className="mb-4 w-full max-w-[400px] text-center py-2 px-4 rounded-lg"
               style={{
                 backgroundColor: playerTeam === 1 ? "#ff6b6b" : "#4dabf7",
                 color: "white",
                 fontWeight: "bold",
                 fontSize: "18px",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
-              }}>
+                boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+              }}
+            >
               You are playing as {playerTeam === 1 ? "RED" : "BLUE"} team
             </div>
           )}
@@ -1400,19 +1455,25 @@ function SoccerStarsGame() {
           </div>
 
           {/* Turn Timer */}
-          {gameMode === GAME_MODES.ONLINE && turnTimeLeft !== null && !gameState.isMoving && (
-            <div className="mb-4 w-full max-w-[400px] flex justify-center">
-              <div 
-                className={`text-center py-1 px-6 rounded-full font-bold ${turnTimeLeft <= 10 ? 'bg-red-600' : 'bg-green-600'}`}
-                style={{ minWidth: '80px' }}
-              >
-                <span className="text-white">{turnTimeLeft}</span>
-                <span className="text-white text-xs ml-1">sec</span>
+          {gameMode === GAME_MODES.ONLINE &&
+            turnTimeLeft !== null &&
+            !gameState.isMoving && (
+              <div className="mb-4 w-full max-w-[400px] flex justify-center">
+                <div
+                  className={`text-center py-1 px-6 rounded-full font-bold ${
+                    turnTimeLeft <= 10 ? "bg-red-600" : "bg-green-600"
+                  }`}
+                  style={{ minWidth: "80px" }}
+                >
+                  <span className="text-white">{turnTimeLeft}</span>
+                  <span className="text-white text-xs ml-1">sec</span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <style dangerouslySetInnerHTML={{ __html: `
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `
             @keyframes shake {
               0% { transform: translate(0, 0) rotate(0deg); }
               10% { transform: translate(-5px, -5px) rotate(-0.5deg); }
@@ -1429,15 +1490,19 @@ function SoccerStarsGame() {
             .camera-shake {
               animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
             }
-          `}} />
-          
+          `,
+            }}
+          />
+
           {/* Notification overlay */}
           {showNotification && (
             <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
               <div className="bg-gray-800 p-6 rounded-lg shadow-lg max-w-md text-center">
-                <h3 className="text-xl font-bold text-white mb-4">Opponent Left</h3>
+                <h3 className="text-xl font-bold text-white mb-4">
+                  Opponent Left
+                </h3>
                 <p className="text-white mb-6">{notificationMessage}</p>
-                <button 
+                <button
                   className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors"
                   onClick={() => {
                     setShowNotification(false);
@@ -1449,15 +1514,17 @@ function SoccerStarsGame() {
               </div>
             </div>
           )}
-          
+
           <div
             ref={containerRef}
-            className={`relative w-full max-w-[400px] h-[600px] border-4 border-gray-400 rounded-lg overflow-hidden cursor-default ${cameraShake ? 'camera-shake' : ''}`}
-            style={{ 
+            className={`relative w-full max-w-[400px] h-[600px] border-4 border-gray-400 rounded-lg overflow-hidden cursor-default ${
+              cameraShake ? "camera-shake" : ""
+            }`}
+            style={{
               touchAction: "none",
               backgroundImage: `url(${fieldImage})`,
               backgroundSize: "cover",
-              backgroundPosition: "center"
+              backgroundPosition: "center",
             }}
           >
             {/* Field markings - Rotated 90 degrees */}
@@ -1501,7 +1568,11 @@ function SoccerStarsGame() {
                             ? "hover:ring-2 hover:ring-yellow-300"
                             : ""
                         }
-                        ${isSelected ? "ring-2 ring-yellow-300 rounded-full" : ""}`}
+                        ${
+                          isSelected
+                            ? "ring-2 ring-yellow-300 rounded-full"
+                            : ""
+                        }`}
                   style={{
                     width: `${ball.size}px`,
                     height: `${ball.size}px`,
@@ -1516,26 +1587,31 @@ function SoccerStarsGame() {
                         : "default",
                     opacity:
                       !gameState.isMoving && isCurrentTeamPlayer ? 1 : 0.8,
-                    backgroundImage: ball.id === "ball" 
-                      ? `url(${ballImage})` 
-                      : ball.team === 1 
-                        ? `url(${playerImage})` 
+                    backgroundImage:
+                      ball.id === "ball"
+                        ? `url(${ballImage})`
+                        : ball.team === 1
+                        ? `url(${playerImage})`
                         : `url(${opponentImage})`,
                     backgroundSize: "contain",
                     backgroundPosition: "center",
-                    backgroundRepeat: "no-repeat"
+                    backgroundRepeat: "no-repeat",
                   }}
                   onMouseDown={
-                    !gameState.isMoving && 
-                    ((gameMode === GAME_MODES.ONLINE && ball.team === playerTeam && ball.team === gameState.currentTeam) || 
-                     (gameMode !== GAME_MODES.ONLINE && isCurrentTeamPlayer))
+                    !gameState.isMoving &&
+                    ((gameMode === GAME_MODES.ONLINE &&
+                      ball.team === playerTeam &&
+                      ball.team === gameState.currentTeam) ||
+                      (gameMode !== GAME_MODES.ONLINE && isCurrentTeamPlayer))
                       ? (e) => handleInteractionStart(e, ball.id)
                       : undefined
                   }
                   onTouchStart={
-                    !gameState.isMoving && 
-                    ((gameMode === GAME_MODES.ONLINE && ball.team === playerTeam && ball.team === gameState.currentTeam) || 
-                     (gameMode !== GAME_MODES.ONLINE && isCurrentTeamPlayer))
+                    !gameState.isMoving &&
+                    ((gameMode === GAME_MODES.ONLINE &&
+                      ball.team === playerTeam &&
+                      ball.team === gameState.currentTeam) ||
+                      (gameMode !== GAME_MODES.ONLINE && isCurrentTeamPlayer))
                       ? (e) => handleInteractionStart(e, ball.id)
                       : undefined
                   }
